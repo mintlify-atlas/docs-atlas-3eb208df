@@ -11,7 +11,7 @@ Generate a price chart for a single cryptocurrency over a specified time period.
 
 ### Endpoint
 
-```
+```text
 GET http://your-server:8081/grafico
 ```
 
@@ -94,7 +94,7 @@ Generate a composite chart showing all 10 cryptocurrencies in a grid layout.
 
 ### Endpoint
 
-```
+```text
 GET http://your-server:8081/graficos-todas
 ```
 
@@ -129,7 +129,7 @@ Each cryptocurrency has a distinct color:
 
 ### Grid Layout
 
-```
+```text
 ┌──────────────┬──────────────┐
 │   Bitcoin    │  Ethereum    │
 ├──────────────┼──────────────┤
@@ -208,7 +208,7 @@ All timestamps are adjusted by -6 hours from the database timezone.
 Both endpoints include full CORS support:
 
 **Response Headers:**
-```
+```text
 Content-Type: image/png
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, OPTIONS

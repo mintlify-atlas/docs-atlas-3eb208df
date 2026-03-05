@@ -7,7 +7,7 @@ Generate a linear regression chart showing historical price data with a fitted t
 
 ## Endpoint
 
-```
+```text
 GET http://your-server:8081/regresion
 ```
 
@@ -69,14 +69,14 @@ The chart title includes:
 
 The least squares method is used:
 
-```
+```text
 slope (m) = (n·Σ(xy) - Σx·Σy) / (n·Σ(x²) - (Σx)²)
 intercept (b) = (Σy - m·Σx) / n
 ```
 
 ### R² Calculation
 
-```
+```text
 R² = 1 - (SS_res / SS_tot)
 
 where:
@@ -103,7 +103,7 @@ SS_res = Σ(y_i - ŷ_i)²  (residual sum of squares)
 ## Error Messages
 
 ### Invalid Parameters
-```
+```text
 Parámetros inválidos. Usa ?crypto=bitcoin&inicio=10&fin=12
 ```
 
@@ -113,7 +113,7 @@ This occurs when:
 - `fin` ≤ `inicio` or `fin` > 24
 
 ### Insufficient Data
-```
+```text
 No hay datos suficientes para el rango especificado
 ```
 
@@ -239,19 +239,19 @@ For a 2-hour range, expect approximately 120 data points (one per minute).
 
 ### Trend Analysis
 Identify if prices are trending up or down during specific hours:
-```
+```text
 ?crypto=bitcoin&inicio=0&fin=24
 ```
 
 ### Trading Hours Analysis
 Analyze price movement during active trading hours:
-```
+```text
 ?crypto=ethereum&inicio=9&fin=17
 ```
 
 ### Volatility Assessment
 Low R² values indicate high volatility (less predictable):
-```
+```text
 ?crypto=dogecoin&inicio=12&fin=18
 ```
 
@@ -271,7 +271,7 @@ Use the regression line equation to predict near-term prices (use with caution).
 The endpoint includes full CORS support:
 
 **Response Headers:**
-```
+```text
 Content-Type: image/png
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, OPTIONS

@@ -7,7 +7,7 @@ Generate a comparison chart showing multiple cryptocurrencies on the same graph 
 
 ## Endpoint
 
-```
+```text
 GET http://your-server:8081/graficoCompara
 ```
 
@@ -52,7 +52,7 @@ Returns a PNG image (`Content-Type: image/png`) showing:
 
 Prices are normalized using min-max normalization for each cryptocurrency:
 
-```
+```text
 normalized_price = (price - min_price) / (max_price - min_price)
 ```
 
@@ -96,22 +96,22 @@ This allows cryptocurrencies with vastly different price ranges to be compared o
 ## Error Messages
 
 ### Invalid Date Format
-```
+```text
 Formato de fecha inválido. Use YYYY-MM-DDTHH:MM
 ```
 
 ### Date Out of Range
-```
+```text
 La fecha de inicio no puede ser anterior a {max_start_time}
 ```
 
 ### Invalid Date Range
-```
+```text
 La fecha de inicio debe ser anterior a la fecha de fin
 ```
 
 ### Missing Cryptocurrencies
-```
+```text
 Debe especificar al menos una criptomoneda. Ejemplo: ?cryptos=bitcoin
 ```
 
@@ -222,19 +222,19 @@ All timestamps are adjusted by -6 hours from the database timezone.
 
 ### Compare Market Trends
 See which cryptocurrencies are moving together or diverging:
-```
+```text
 ?cryptos=bitcoin,ethereum&inicio=2025-06-27T00:00&fin=2025-06-27T23:59
 ```
 
 ### Analyze Correlation
 Identify correlated price movements across multiple assets:
-```
+```text
 ?cryptos=bitcoin,bitcoin_cash,ethereum
 ```
 
 ### Track Market Sentiment
 Compare major caps vs. altcoins:
-```
+```text
 ?cryptos=bitcoin,ethereum,dogecoin,cardano
 ```
 
@@ -243,7 +243,7 @@ Compare major caps vs. altcoins:
 The endpoint includes full CORS support:
 
 **Response Headers:**
-```
+```text
 Content-Type: image/png
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, OPTIONS
