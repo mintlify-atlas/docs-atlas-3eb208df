@@ -1,0 +1,83 @@
+{
+  "projectType": "general",
+  "projectName": "CryptoTracker Web",
+  "projectDescription": "A distributed web application for tracking cryptocurrency prices in real-time, visualizing historical charts, comparing assets, and analyzing trends with linear regression.",
+  "theme": "almond",
+  "primaryColor": "#545454",
+  "lightColor": "#159944",
+  "darkColor": "#f3f2d5",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Architecture",
+        "pages": [
+          "architecture/overview",
+          "architecture/microservices",
+          "architecture/deployment"
+        ]
+      },
+      {
+        "group": "Services",
+        "pages": [
+          "services/webserver",
+          "services/grafico-service",
+          "services/recolector-precios",
+          "services/frontend"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/overview",
+          "api/precios",
+          "api/graficos",
+          "api/comparacion",
+          "api/regresion"
+        ]
+      },
+      {
+        "group": "Deployment",
+        "pages": [
+          "deployment/local-setup",
+          "deployment/google-cloud",
+          "deployment/configuration"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time cryptocurrency price tracking for 10 major cryptocurrencies",
+    "Historical price variation charts with customizable time ranges",
+    "Multi-cryptocurrency comparison with normalized price overlays",
+    "Linear regression analysis for price trend prediction",
+    "Microservices architecture deployed on Google Cloud Platform",
+    "RESTful API endpoints for price data and chart generation",
+    "Automated price collection from CoinGecko API every 60 seconds",
+    "MySQL database for historical price storage",
+    "XChart library for PNG chart generation",
+    "Lightweight HTML/JavaScript frontend with responsive design"
+  ],
+  "publicApiSurface": [
+    "GET /status - Health check endpoint (WebServer, GraficoService, RecolectorPrecios)",
+    "GET /precios - Retrieve latest cryptocurrency prices in JSON format",
+    "GET /grafico?crypto={crypto}&horas={hours} - Generate individual price variation chart",
+    "GET /graficos-todas?horas={hours} - Generate charts for all cryptocurrencies",
+    "GET /graficoCompara?cryptos={list}&inicio={datetime}&fin={datetime} - Compare multiple cryptocurrencies",
+    "GET /regresion?crypto={crypto}&inicio={hour}&fin={hour} - Linear regression analysis",
+    "WebServer.java main class with HttpServer on port 8080",
+    "GraficoService.java chart generation service on port 8081",
+    "RecolectorPrecios.java price collection service on port 8082",
+    "MySQL database connection via JDBC",
+    "CoinGecko API integration for price data",
+    "XChart library for chart generation (PNG format)",
+    "CORS-enabled endpoints for cross-origin requests",
+    "Frontend interface at index.html with 5 main sections"
+  ]
+}
