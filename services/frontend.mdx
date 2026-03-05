@@ -1,0 +1,517 @@
+---
+title: 'Frontend Interface'
+description: 'Single-page web application that provides an interactive UI for cryptocurrency price tracking and visualization'
+---
+
+## Overview
+
+The **Frontend** is a single-page application (SPA) built with vanilla HTML, CSS, and JavaScript. It provides a modern, responsive interface for viewing cryptocurrency prices and generating various types of charts.
+
+**File:** `index.html` (853 lines)
+
+## Architecture
+
+### Technology Stack
+
+- **HTML5:** Semantic markup and structure
+- **CSS3:** Modern styling with CSS Grid, Flexbox, and animations
+- **Vanilla JavaScript:** No frameworks, pure ES6+ JavaScript
+- **Font Awesome 6.0.0:** Icon library for UI elements
+
+### API Configuration
+
+```javascript
+const API_BASE_URL = "http://34.36.237.99";
+const CHART_API_BASE_URL = "http://34.36.237.99";
+```
+
+Both variables point to the production server. The frontend communicates with:
+- **Port 8080:** WebServer (price data)
+- **Port 8081:** GraficoService (chart images)
+
+## Five Main Sections
+
+### 1. Prices Section
+
+Displays real-time cryptocurrency prices in a responsive grid layout.
+
+**HTML Structure:**
+```html
+<section id="prices" class="section active">
+    <div class="section-title">
+        <h2>Precios en Tiempo Real</h2>
+        <p>Las 10 principales criptomonedas por capitalización de mercado</p>
+    </div>
+    <div id="crypto-container" class="crypto-grid"></div>
+</section>
+```
+
+**JavaScript Implementation:**
+```javascript
+async function fetchCryptoPrices() {
+    const cryptoContainer = document.getElementById('crypto-container');
+    try {
+        const response = await fetch(`${API_BASE_URL}/precios`);
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        cryptoData = await response.json();
+        
+        document.getElementById('lastUpdate').textContent = 
+            `Última actualización: ${new Date().toLocaleTimeString()}`;
+            
+        cryptoContainer.innerHTML = cryptoData.map(crypto => {
+            const iconUrl = getCryptoIconUrl(crypto, '128');
+            const fallbackIconUrl = 
+                `https://via.placeholder.com/50/1a1a2e/f39c12?text=${crypto.symbol.substring(0,2)}`;
+            return `
+            <div class="crypto-card">
+                <div class="crypto-header">
+                    <img class="crypto-icon" src="${iconUrl}" alt="${crypto.name} logo" 
+                         onerror="this.src='${fallbackIconUrl}'">
+                    <div class="crypto-info">
+                        <h3>${crypto.name}</h3>
+                        <div class="crypto-symbol">${crypto.symbol}</div>
+                    </div>
+                </div>
+                <div class="crypto-price">$${crypto.price.toFixed(2)}</div>
+            </div>`
+        }).join('');
+        
+        populateCryptoSelectors();
+    } catch (error) {
+        cryptoContainer.innerHTML = 
+            `<div class="error-message" style="grid-column: 1 / -1;">
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                <h3>Error al cargar datos</h3>
+                <p>${error.message}</p>
+            </div>`;
+    }
+}
+```
+
+**Auto-refresh:**
+```javascript
+document.addEventListener('DOMContentLoaded', () => {
+    fetchCryptoPrices();
+    setInterval(fetchCryptoPrices, 60000); // Every 60 seconds
+});
+```
+
+### 2. Individual Chart Section
+
+Generates a single cryptocurrency chart for a specified time period.
+
+**HTML Structure:**
+```html
+<section id="single-chart" class="section">
+    <div class="section-title">
+        <h2>Gráfico de Variación Individual</h2>
+        <p>Analiza la evolución de precio de una criptomoneda específica</p>
+    </div>
+    <div class="form-container">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Criptomoneda:</label>
+                <div id="single-crypto-container" class="crypto-select-container">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="single-hours">Horas (1-24):</label>
+                <input type="number" id="single-hours" min="1" max="24" value="24">
+            </div>
+            <div class="form-group">
+                <button class="btn" onclick="generateSingleChart()">
+                    <i class="fas fa-chart-line"></i> Generar Gráfico
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="chart-container" id="single-chart-result">
+        <div class="chart-placeholder">
+            <i class="fas fa-chart-line"></i>
+            <h3>Selecciona una criptomoneda y genera el gráfico</h3>
+        </div>
+    </div>
+</section>
+```
+
+**JavaScript Implementation:**
+```javascript
+function generateSingleChart() {
+    const selectedInput = document.querySelector('input[name="single_crypto"]:checked');
+    if (!selectedInput) { 
+        alert('Por favor selecciona una criptomoneda'); 
+        return; 
+    }
+    const crypto = selectedInput.value;
+    const hours = document.getElementById('single-hours').value;
+    const url = `${CHART_API_BASE_URL}/grafico?crypto=${crypto}&horas=${hours}`;
+    displayChart(url, 'single-chart-result', `Generando gráfico de ${crypto}...`);
+}
+```
+
+### 3. All Charts Section
+
+Displays charts for all 10 cryptocurrencies in a composite image.
+
+**JavaScript Implementation:**
+```javascript
+function generateAllCharts() {
+    const hours = document.getElementById('all-hours').value;
+    const url = `${CHART_API_BASE_URL}/graficos-todas?horas=${hours}`;
+    displayChart(url, 'all-charts-result', 'Generando gráficos para todas las criptomonedas...');
+}
+```
+
+**Custom Layout with Labels:**
+```javascript
+if (containerId === 'all-charts-result') {
+    const findCrypto = (name) => cryptoData.find(c => c.name === name);
+    const createLabelHtml = (crypto) => {
+        if (!crypto) return '<div></div>';
+        const iconUrl = getCryptoIconUrl(crypto, '32');
+        const fallbackIconUrl = 
+            `https://via.placeholder.com/32/ecf0f1/2c3e50?text=${crypto.symbol.substring(0,2)}`;
+        return `
+            <div class="crypto-label-item">
+                <img src="${iconUrl}" alt="" onerror="this.src='${fallbackIconUrl}'">
+                <span>${crypto.name}</span>
+            </div>
+        `;
+    };
+
+    const leftLabelsHtml = leftColumnOrder.map(name => createLabelHtml(findCrypto(name))).join('');
+    const rightLabelsHtml = rightColumnOrder.map(name => createLabelHtml(findCrypto(name))).join('');
+
+    container.innerHTML = `
+        <div class="all-charts-wrapper">
+            <div class="crypto-labels-column">${leftLabelsHtml}</div>
+            <img src="${imageUrl}" alt="Gráfico de todas las criptomonedas" />
+            <div class="crypto-labels-column">${rightLabelsHtml}</div>
+        </div>
+    `;
+}
+```
+
+### 4. Compare Section
+
+Compares multiple cryptocurrencies on a single normalized chart.
+
+**HTML Structure:**
+```html
+<div class="form-group" style="grid-column: 1 / span 2;">
+    <label>Criptomonedas:</label>
+    <div id="compare-cryptos-container" class="crypto-select-container">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+</div>
+<div class="form-group">
+    <label for="compare-start">Hora de inicio (0-23):</label>
+    <input type="number" id="compare-start" min="0" max="23" value="7">
+</div>
+<div class="form-group">
+    <label for="compare-end">Hora de fin (1-24):</label>
+    <input type="number" id="compare-end" min="1" max="24" value="9">
+</div>
+```
+
+**JavaScript Implementation:**
+```javascript
+function generateCompareChart() {
+    const cryptos = Array.from(
+        document.querySelectorAll('input[name="compare_crypto"]:checked')
+    ).map(cb => cb.value);
+    
+    if (cryptos.length === 0) { 
+        alert('Selecciona al menos una criptomoneda'); 
+        return; 
+    }
+
+    const startHour = document.getElementById('compare-start').value;
+    const endHour = document.getElementById('compare-end').value;
+    
+    if (parseInt(endHour) <= parseInt(startHour)) { 
+        alert('La hora de fin debe ser mayor que la de inicio'); 
+        return; 
+    }
+
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+
+    const fechaInicio = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:00`;
+    const fechaFin = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:00`;
+
+    const url = 
+        `${CHART_API_BASE_URL}/graficoCompara?cryptos=${cryptos.join(',')}&inicio=${fechaInicio}&fin=${fechaFin}`;
+    displayChart(url, 'compare-chart-result', `Comparando ${cryptos.join(', ')}...`);
+}
+```
+
+### 5. Regression Section
+
+Performs linear regression analysis on a cryptocurrency's price data.
+
+**JavaScript Implementation:**
+```javascript
+function generateRegressionChart() {
+    const selectedInput = document.querySelector('input[name="regression_crypto"]:checked');
+    if (!selectedInput) { 
+        alert('Por favor selecciona una criptomoneda'); 
+        return; 
+    }
+    const crypto = selectedInput.value;
+    
+    const startHour = document.getElementById('regression-start').value;
+    const endHour = document.getElementById('regression-end').value;
+    
+    if (parseInt(endHour) <= parseInt(startHour)) { 
+        alert('La hora de fin debe ser mayor que la de inicio'); 
+        return; 
+    }
+    
+    const url = 
+        `${CHART_API_BASE_URL}/regresion?crypto=${crypto}&inicio=${startHour}&fin=${endHour}`;
+    displayChart(url, 'regression-chart-result', `Calculando regresión para ${crypto}...`);
+}
+```
+
+## UI Components and Styling
+
+### Navigation Tabs
+
+```javascript
+document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab, .section')
+            .forEach(el => el.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.getAttribute('data-section')).classList.add('active');
+    });
+});
+```
+
+### CSS Variables
+
+```css
+:root {
+    --primary-color: #1a1a2e;
+    --secondary-color: #16213e;
+    --accent-color: #0f3460;
+    --gold-color: #f39c12;
+    --green-color: #27ae60;
+    --red-color: #e74c3c;
+    --text-light: #ecf0f1;
+    --text-dark: #2c3e50;
+    --card-bg: rgba(255, 255, 255, 0.98);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+```
+
+### Gradient Background
+
+```css
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, 
+        var(--primary-color) 0%, 
+        var(--secondary-color) 50%, 
+        var(--accent-color) 100%);
+    color: var(--text-light);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+```
+
+### Crypto Card Styling
+
+```css
+.crypto-card {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    border-top: 4px solid var(--gold-color);
+}
+
+.crypto-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+```
+
+### Animations
+
+```css
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(39, 174, 96, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+```
+
+## Reusable Functions
+
+### Display Chart Function
+
+Central function for fetching and displaying chart images:
+
+```javascript
+async function displayChart(endpointUrl, containerId, loadingMessage) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>${loadingMessage}</p>
+        </div>`;
+
+    try {
+        const response = await fetch(endpointUrl, { mode: 'cors' });
+        if (!response.ok) {
+            throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+        }
+        
+        const imageBlob = await response.blob();
+        if (imageBlob.size === 0) {
+             throw new Error("La respuesta del servidor está vacía. Puede que no haya datos para el rango seleccionado.");
+        }
+        
+        const imageUrl = URL.createObjectURL(imageBlob);
+        container.innerHTML = `<img src="${imageUrl}" alt="Gráfico generado" />`;
+
+    } catch (error) {
+        console.error('Error al generar el gráfico:', error);
+        container.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                <h3>Error al generar gráfico</h3>
+                <p>${error.message}</p>
+                <p style="font-size: 0.8rem; opacity: 0.7;">URL: ${endpointUrl}</p>
+            </div>`;
+    }
+}
+```
+
+### Crypto Icon Helper
+
+```javascript
+function getCryptoIconUrl(crypto, size = '128') {
+    if (crypto.name === 'Hyperliquid') {
+        return 'https://avatars.githubusercontent.com/u/129421375?s=200&v=4';
+    }
+    const symbol = crypto.symbol.toLowerCase();
+    const sizePath = size === '128' ? `128/color` : `32/color`;
+    return `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/${sizePath}/${symbol}.png`;
+}
+```
+
+### Populate Crypto Selectors
+
+```javascript
+function populateCryptoSelectors() {
+    const singleContainer = document.getElementById('single-crypto-container');
+    const compareContainer = document.getElementById('compare-cryptos-container');
+    const regressionContainer = document.getElementById('regression-crypto-container');
+
+    const cryptoHtml = cryptoData.map((crypto, index) => {
+        const cryptoId = cryptoMapping[crypto.name] || '';
+        if (!cryptoId) return ''; 
+
+        const iconUrl = getCryptoIconUrl(crypto, '32');
+        const fallbackIconUrl = 
+            `https://via.placeholder.com/28/1a1a2e/f39c12?text=${crypto.symbol.substring(0,2)}`;
+        const commonHtml = `
+            <img src="${iconUrl}" alt="" onerror="this.src='${fallbackIconUrl}'">
+            <label for="${cryptoId}">${crypto.name}</label>`;
+        
+        return {
+            single: `<div class="crypto-select-item"><input type="radio" id="single_${cryptoId}" name="single_crypto" value="${cryptoId}" ${index === 0 ? 'checked' : ''}>${commonHtml.replace('for="', `for="single_`)}</div>`,
+            compare: `<div class="crypto-select-item"><input type="checkbox" id="compare_${cryptoId}" name="compare_crypto" value="${cryptoId}">${commonHtml.replace('for="', `for="compare_`)}</div>`,
+            regression: `<div class="crypto-select-item"><input type="radio" id="regression_${cryptoId}" name="regression_crypto" value="${cryptoId}" ${index === 0 ? 'checked' : ''}>${commonHtml.replace('for="', `for="regression_`)}</div>`
+        };
+    }).filter(Boolean);
+
+    singleContainer.innerHTML = cryptoHtml.map(item => item.single).join('');
+    compareContainer.innerHTML = cryptoHtml.map(item => item.compare).join('');
+    regressionContainer.innerHTML = cryptoHtml.map(item => item.regression).join('');
+}
+```
+
+## Responsive Design
+
+Mobile-friendly media queries:
+
+```css
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .nav-tabs {
+        justify-content: center;
+    }
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    .all-charts-wrapper {
+        flex-direction: column;
+    }
+    .all-charts-wrapper > img {
+        max-width: 100%;
+        order: 2;
+    }
+    .crypto-labels-column {
+        flex-direction: row;
+        flex-wrap: wrap;
+        height: auto;
+        order: 1;
+    }
+}
+```
+
+## Error Handling
+
+Comprehensive error handling throughout the application:
+
+```javascript
+// Network errors
+catch (error) {
+    cryptoContainer.innerHTML = 
+        `<div class="error-message" style="grid-column: 1 / -1;">
+            <i class="fas fa-exclamation-triangle fa-2x"></i>
+            <h3>Error al cargar datos</h3>
+            <p>${error.message}</p>
+        </div>`;
+}
+
+// Validation errors
+if (cryptos.length === 0) { 
+    alert('Selecciona al menos una criptomoneda'); 
+    return; 
+}
+```
+
+## Key Features
+
+1. **Real-time updates:** Prices refresh every 60 seconds
+2. **Responsive design:** Works on desktop, tablet, and mobile
+3. **Dynamic selectors:** Crypto options populated from API data
+4. **Loading states:** Spinners and messages during async operations
+5. **Error handling:** User-friendly error messages
+6. **Icon fallbacks:** Placeholder images if icons fail to load
+7. **CORS support:** Configured for cross-origin requests
+8. **No dependencies:** Pure vanilla JavaScript, no build process required

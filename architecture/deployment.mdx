@@ -1,0 +1,955 @@
+---
+title: 'Deployment Architecture'
+description: 'Google Cloud Platform deployment configuration and infrastructure setup'
+---
+
+## Deployment Overview
+
+CryptoTracker Web is deployed on Google Cloud Platform (GCP) using a multi-VM architecture. Each microservice runs on its own Compute Engine instance, with a shared MySQL database and NGINX-based frontend.
+
+## Infrastructure Architecture
+
+### High-Level Topology
+
+```
+                         Internet
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │  Cloud Load  │
+                    │   Balancer   │ (Optional)
+                    └──────┬───────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+        ┌─────────┐  ┌─────────┐  ┌─────────┐
+        │   VM1   │  │   VM2   │  │   VM3   │
+        │ NGINX   │  │WebServer│  │ Grafico │
+        │Frontend │  │:8080    │  │Service  │
+        └─────────┘  └────┬────┘  │:8081    │
+                          │       └────┬────┘
+                          │            │
+                          └────┬───────┘
+                               ▼
+                       ┌──────────────┐
+                       │     VM4      │
+                       │   MySQL DB   │
+                       │ 10.23.176.2  │
+                       └──────┬───────┘
+                              ▲
+                              │
+                       ┌──────┴───────┐
+                       │     VM5      │
+                       │  Recolector  │
+                       │  Precios     │
+                       │   :8082      │
+                       └──────────────┘
+```
+
+## Virtual Machine Configuration
+
+### VM Instance Specifications
+
+| VM | Service | Machine Type | OS | Internal IP | External IP | Ports |
+|----|---------|--------------|----|-|-|-|
+| VM1 | Frontend | e2-micro | Debian 11 | 10.23.176.x | Yes | 80, 443 |
+| VM2 | WebServer | e2-small | Debian 11 | 10.23.176.x | Yes | 8080 |
+| VM3 | GraficoService | e2-medium | Debian 11 | 10.23.176.x | Yes | 8081 |
+| VM4 | MySQL Database | e2-standard-2 | Debian 11 | 10.23.176.2 | No | 3306 |
+| VM5 | RecolectorPrecios | e2-small | Debian 11 | 10.23.176.x | Optional | 8082 |
+
+### Compute Engine Configuration
+
+#### VM1 - Frontend (NGINX)
+```bash
+# Machine type
+Machine Type: e2-micro (2 vCPU, 1 GB memory)
+
+# Boot disk
+Boot Disk: 10 GB Standard persistent disk
+OS: Debian GNU/Linux 11 (bullseye)
+
+# Network
+Network: default (10.23.176.0/20)
+External IP: Ephemeral or Static
+Network tags: http-server, https-server
+
+# Firewall rules
+Allow HTTP (80)
+Allow HTTPS (443)
+```
+
+#### VM2 - WebServer
+```bash
+# Machine type
+Machine Type: e2-small (2 vCPU, 2 GB memory)
+
+# Boot disk
+Boot Disk: 10 GB Standard persistent disk
+OS: Debian GNU/Linux 11 (bullseye)
+
+# Network
+Network: default (10.23.176.0/20)
+External IP: Ephemeral or Static
+Network tags: custom-8080
+
+# Firewall rules
+Allow TCP 8080 (0.0.0.0/0)
+```
+
+#### VM3 - GraficoService
+```bash
+# Machine type
+Machine Type: e2-medium (2 vCPU, 4 GB memory)  # More memory for image processing
+
+# Boot disk
+Boot Disk: 20 GB Standard persistent disk
+OS: Debian GNU/Linux 11 (bullseye)
+
+# Network
+Network: default (10.23.176.0/20)
+External IP: Ephemeral or Static
+Network tags: custom-8081
+
+# Firewall rules
+Allow TCP 8081 (0.0.0.0/0)
+```
+
+#### VM4 - MySQL Database
+```bash
+# Machine type
+Machine Type: e2-standard-2 (2 vCPU, 8 GB memory)  # More resources for database
+
+# Boot disk
+Boot Disk: 50 GB SSD persistent disk  # SSD for better I/O
+OS: Debian GNU/Linux 11 (bullseye)
+
+# Network
+Network: default (10.23.176.0/20)
+Internal IP: 10.23.176.2 (Static internal IP)
+External IP: None (internal only)
+Network tags: mysql-server
+
+# Firewall rules
+Allow TCP 3306 from 10.23.176.0/20 (internal network only)
+```
+
+#### VM5 - RecolectorPrecios
+```bash
+# Machine type
+Machine Type: e2-small (2 vCPU, 2 GB memory)
+
+# Boot disk
+Boot Disk: 10 GB Standard persistent disk
+OS: Debian GNU/Linux 11 (bullseye)
+
+# Network
+Network: default (10.23.176.0/20)
+External IP: Optional (needed for CoinGecko API access)
+Network tags: custom-8082
+
+# Firewall rules
+Allow TCP 8082 (optional, for health checks)
+```
+
+---
+
+## Network Configuration
+
+### VPC Network
+
+**Network Name:** default  
+**Region:** us-central1 (or your chosen region)  
+**Subnet:** 10.23.176.0/20 (4096 IP addresses)
+
+### Firewall Rules
+
+#### Frontend Access
+```bash
+gcloud compute firewall-rules create allow-http \
+  --direction=INGRESS \
+  --priority=1000 \
+  --network=default \
+  --action=ALLOW \
+  --rules=tcp:80 \
+  --source-ranges=0.0.0.0/0 \
+  --target-tags=http-server
+
+gcloud compute firewall-rules create allow-https \
+  --direction=INGRESS \
+  --priority=1000 \
+  --network=default \
+  --action=ALLOW \
+  --rules=tcp:443 \
+  --source-ranges=0.0.0.0/0 \
+  --target-tags=https-server
+```
+
+#### Backend Services
+```bash
+gcloud compute firewall-rules create allow-webserver \
+  --direction=INGRESS \
+  --priority=1000 \
+  --network=default \
+  --action=ALLOW \
+  --rules=tcp:8080 \
+  --source-ranges=0.0.0.0/0 \
+  --target-tags=custom-8080
+
+gcloud compute firewall-rules create allow-graficoservice \
+  --direction=INGRESS \
+  --priority=1000 \
+  --network=default \
+  --action=ALLOW \
+  --rules=tcp:8081 \
+  --source-ranges=0.0.0.0/0 \
+  --target-tags=custom-8081
+```
+
+#### Database (Internal Only)
+```bash
+gcloud compute firewall-rules create allow-mysql-internal \
+  --direction=INGRESS \
+  --priority=1000 \
+  --network=default \
+  --action=ALLOW \
+  --rules=tcp:3306 \
+  --source-ranges=10.23.176.0/20 \
+  --target-tags=mysql-server
+```
+
+---
+
+## Service Deployment
+
+### Frontend Deployment (NGINX)
+
+#### 1. Install NGINX
+```bash
+sudo apt-get update
+sudo apt-get install -y nginx
+```
+
+#### 2. Configure NGINX
+
+Create `/etc/nginx/sites-available/cryptotracker`:
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+    
+    root /var/www/cryptotracker;
+    index index.html;
+    
+    # Enable gzip compression
+    gzip on;
+    gzip_types text/css application/javascript text/html;
+    
+    location / {
+        try_files $uri $uri/ =404;
+    }
+    
+    # Cache static assets
+    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Proxy to backend services (if needed)
+    location /api/precios {
+        proxy_pass http://10.23.176.x:8080/precios;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    
+    location /api/grafico {
+        proxy_pass http://10.23.176.x:8081/grafico;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+#### 3. Deploy Frontend Files
+```bash
+# Create web root
+sudo mkdir -p /var/www/cryptotracker
+
+# Upload files using gsutil
+gsutil cp gs://fontend-bucket/index.html /var/www/cryptotracker/
+gsutil cp gs://fontend-bucket/style.css /var/www/cryptotracker/
+
+# Or upload directly
+sudo scp -i ~/.ssh/gcp-key index.html user@VM_IP:/var/www/cryptotracker/
+sudo scp -i ~/.ssh/gcp-key style.css user@VM_IP:/var/www/cryptotracker/
+
+# Set permissions
+sudo chown -R www-data:www-data /var/www/cryptotracker
+sudo chmod -R 755 /var/www/cryptotracker
+```
+
+#### 4. Enable Site
+```bash
+sudo ln -s /etc/nginx/sites-available/cryptotracker /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart nginx
+sudo systemctl enable nginx
+```
+
+---
+
+### MySQL Database Deployment
+
+#### 1. Install MySQL Server
+```bash
+sudo apt-get update
+sudo apt-get install -y mysql-server
+```
+
+#### 2. Secure Installation
+```bash
+sudo mysql_secure_installation
+```
+
+Configuration:
+- Set root password: `root` (as per source code)
+- Remove anonymous users: Yes
+- Disallow root login remotely: No (needed for our setup)
+- Remove test database: Yes
+- Reload privilege tables: Yes
+
+#### 3. Configure MySQL for Remote Access
+
+Edit `/etc/mysql/mysql.conf.d/mysqld.cnf`:
+
+```ini
+[mysqld]
+# Bind to all interfaces (for internal network access)
+bind-address = 0.0.0.0
+
+# Performance tuning
+max_connections = 200
+innodb_buffer_pool_size = 4G
+innodb_log_file_size = 512M
+
+# Enable SSL
+require_secure_transport = ON
+ssl-ca=/var/lib/mysql/ca.pem
+ssl-cert=/var/lib/mysql/server-cert.pem
+ssl-key=/var/lib/mysql/server-key.pem
+```
+
+#### 4. Create Database and Tables
+
+```bash
+sudo mysql -u root -p
+```
+
+```sql
+-- Create database
+CREATE DATABASE criptomonedas_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE criptomonedas_db;
+
+-- Create tables for each cryptocurrency
+CREATE TABLE bitcoin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    precio DECIMAL(18,2) NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fecha (fecha_registro)
+) ENGINE=InnoDB;
+
+CREATE TABLE ethereum LIKE bitcoin;
+CREATE TABLE ripple LIKE bitcoin;
+CREATE TABLE solana LIKE bitcoin;
+CREATE TABLE tron LIKE bitcoin;
+CREATE TABLE dogecoin LIKE bitcoin;
+CREATE TABLE cardano LIKE bitcoin;
+CREATE TABLE hyperliquid LIKE bitcoin;
+CREATE TABLE bitcoin_cash LIKE bitcoin;
+CREATE TABLE chainlink LIKE bitcoin;
+
+-- Create user for remote access
+CREATE USER 'root'@'10.23.176.%' IDENTIFIED BY 'root';
+GRANT ALL PRIVILEGES ON criptomonedas_db.* TO 'root'@'10.23.176.%';
+FLUSH PRIVILEGES;
+
+-- Verify tables
+SHOW TABLES;
+```
+
+#### 5. Restart MySQL
+```bash
+sudo systemctl restart mysql
+sudo systemctl enable mysql
+```
+
+#### 6. Test Connection
+```bash
+# From another VM in the network
+mysql -h 10.23.176.2 -u root -p -e "SHOW DATABASES;"
+```
+
+---
+
+### Java Microservices Deployment
+
+#### Prerequisites on All Java VMs
+
+```bash
+# Install Java 17
+sudo apt-get update
+sudo apt-get install -y openjdk-17-jdk
+
+# Verify installation
+java -version
+
+# Create application directory
+sudo mkdir -p /opt/cryptotracker
+sudo chown $USER:$USER /opt/cryptotracker
+```
+
+#### WebServer Deployment
+
+```bash
+# Upload files
+cd /opt/cryptotracker
+mkdir -p webserver/lib
+
+# Copy compiled class and libraries
+scp WebServer.class user@VM_IP:/opt/cryptotracker/webserver/
+scp lib/mysql-connector-java-*.jar user@VM_IP:/opt/cryptotracker/webserver/lib/
+
+# Or compile on server
+javac -cp ".:lib/*" WebServer.java
+```
+
+#### Create Systemd Service
+
+Create `/etc/systemd/system/webserver.service`:
+
+```ini
+[Unit]
+Description=CryptoTracker WebServer
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=cryptotracker
+WorkingDirectory=/opt/cryptotracker/webserver
+ExecStart=/usr/bin/java -cp ".:lib/*" WebServer 8080
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable webserver
+sudo systemctl start webserver
+sudo systemctl status webserver
+
+# View logs
+sudo journalctl -u webserver -f
+```
+
+#### GraficoService Deployment
+
+```bash
+# Upload files
+cd /opt/cryptotracker
+mkdir -p graficoservice/lib
+
+# Copy compiled class and libraries
+scp GraficoService.class user@VM_IP:/opt/cryptotracker/graficoservice/
+scp lib/mysql-connector-java-*.jar user@VM_IP:/opt/cryptotracker/graficoservice/lib/
+scp lib/xchart-*.jar user@VM_IP:/opt/cryptotracker/graficoservice/lib/
+```
+
+Create `/etc/systemd/system/graficoservice.service`:
+
+```ini
+[Unit]
+Description=CryptoTracker GraficoService
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=cryptotracker
+WorkingDirectory=/opt/cryptotracker/graficoservice
+ExecStart=/usr/bin/java -cp ".:lib/*" java.GraficoService
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Higher memory for image processing
+MemoryMax=2G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable graficoservice
+sudo systemctl start graficoservice
+sudo systemctl status graficoservice
+```
+
+#### RecolectorPrecios Deployment
+
+```bash
+# Upload files
+cd /opt/cryptotracker
+mkdir -p recolector/lib
+
+# Copy compiled class and libraries
+scp RecolectorPrecios.class user@VM_IP:/opt/cryptotracker/recolector/
+scp lib/mysql-connector-java-*.jar user@VM_IP:/opt/cryptotracker/recolector/lib/
+```
+
+Create `/etc/systemd/system/recolector.service`:
+
+```ini
+[Unit]
+Description=CryptoTracker Price Collector
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=cryptotracker
+WorkingDirectory=/opt/cryptotracker/recolector
+ExecStart=/usr/bin/java -cp ".:lib/*" RecolectorPrecios 8082
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Lower memory requirements
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable recolector
+sudo systemctl start recolector
+sudo systemctl status recolector
+```
+
+---
+
+## Storage Configuration
+
+### Cloud Storage Buckets
+
+```bash
+# Create bucket for frontend assets
+gsutil mb -c STANDARD -l us-central1 gs://fontend-bucket/
+
+# Upload frontend files
+gsutil cp index.html gs://fontend-bucket/
+gsutil cp style.css gs://fontend-bucket/
+gsutil cp -r assets gs://fontend-bucket/
+
+# Make bucket publicly readable (if needed)
+gsutil iam ch allUsers:objectViewer gs://fontend-bucket/
+```
+
+### Persistent Disks
+
+- **Frontend VM:** 10 GB standard disk (sufficient for static files)
+- **WebServer VM:** 10 GB standard disk
+- **GraficoService VM:** 20 GB standard disk (more space for temporary image files)
+- **MySQL VM:** 50 GB SSD persistent disk (better I/O for database)
+- **RecolectorPrecios VM:** 10 GB standard disk
+
+### Disk Snapshots
+
+```bash
+# Create snapshot schedule for MySQL data
+gcloud compute resource-policies create snapshot-schedule mysql-daily-backup \
+  --max-retention-days=7 \
+  --start-time=03:00 \
+  --daily-schedule
+
+# Attach to MySQL disk
+gcloud compute disks add-resource-policies mysql-disk \
+  --resource-policies=mysql-daily-backup \
+  --zone=us-central1-a
+```
+
+---
+
+## Monitoring and Logging
+
+### Cloud Monitoring
+
+#### Enable Monitoring Agent
+
+```bash
+# On each VM
+curl -sSO https://dl.google.com/cloudagents/add-monitoring-agent-repo.sh
+sudo bash add-monitoring-agent-repo.sh --also-install
+
+# Start agent
+sudo systemctl start stackdriver-agent
+sudo systemctl enable stackdriver-agent
+```
+
+#### Create Uptime Checks
+
+```bash
+# WebServer health check
+gcloud monitoring uptime-checks create webserver-check \
+  --display-name="WebServer Health" \
+  --resource-type=uptime-url \
+  --http-check \
+  --path="/status" \
+  --port=8080
+
+# GraficoService health check
+gcloud monitoring uptime-checks create graficoservice-check \
+  --display-name="GraficoService Health" \
+  --resource-type=uptime-url \
+  --http-check \
+  --path="/status" \
+  --port=8081
+```
+
+### Cloud Logging
+
+#### Configure Logging Agent
+
+```bash
+# On each VM
+curl -sSO https://dl.google.com/cloudagents/add-logging-agent-repo.sh
+sudo bash add-logging-agent-repo.sh --also-install
+
+# Start agent
+sudo systemctl start google-fluentd
+sudo systemctl enable google-fluentd
+```
+
+#### View Logs
+
+```bash
+# View systemd service logs
+gcloud logging read "resource.type=gce_instance AND logName=projects/YOUR_PROJECT/logs/syslog" \
+  --limit=50 \
+  --format=json
+
+# View application logs
+sudo journalctl -u webserver -n 100 --no-pager
+sudo journalctl -u graficoservice -n 100 --no-pager
+sudo journalctl -u recolector -n 100 --no-pager
+```
+
+---
+
+## Security Hardening
+
+### OS Security
+
+```bash
+# Update all packages
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Enable automatic security updates
+sudo apt-get install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Configure firewall (ufw)
+sudo ufw allow 22/tcp     # SSH
+sudo ufw allow 80/tcp     # HTTP (frontend only)
+sudo ufw allow 8080/tcp   # WebServer
+sudo ufw allow 8081/tcp   # GraficoService
+sudo ufw enable
+```
+
+### MySQL Security
+
+```bash
+# Disable remote root login
+mysql -u root -p
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+FLUSH PRIVILEGES;
+
+# Create limited user for applications
+CREATE USER 'cryptoapp'@'10.23.176.%' IDENTIFIED BY 'secure_password';
+GRANT SELECT, INSERT ON criptomonedas_db.* TO 'cryptoapp'@'10.23.176.%';
+FLUSH PRIVILEGES;
+```
+
+### SSH Hardening
+
+Edit `/etc/ssh/sshd_config`:
+
+```bash
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+Port 22
+```
+
+```bash
+sudo systemctl restart sshd
+```
+
+---
+
+## Scaling Considerations
+
+### Horizontal Scaling
+
+#### Load Balancer Setup
+
+```bash
+# Create instance group for WebServer
+gcloud compute instance-groups managed create webserver-group \
+  --base-instance-name=webserver \
+  --size=2 \
+  --template=webserver-template \
+  --zone=us-central1-a
+
+# Create HTTP health check
+gcloud compute health-checks create http webserver-health \
+  --port=8080 \
+  --request-path=/status
+
+# Create backend service
+gcloud compute backend-services create webserver-backend \
+  --protocol=HTTP \
+  --health-checks=webserver-health \
+  --global
+
+# Add instance group to backend
+gcloud compute backend-services add-backend webserver-backend \
+  --instance-group=webserver-group \
+  --instance-group-zone=us-central1-a \
+  --global
+```
+
+### Vertical Scaling
+
+```bash
+# Upgrade machine type
+gcloud compute instances set-machine-type graficoservice-vm \
+  --machine-type=e2-standard-2 \
+  --zone=us-central1-a
+```
+
+### Database Scaling
+
+#### Read Replicas
+
+```bash
+# Consider Cloud SQL for managed replication
+gcloud sql instances create cryptotracker-replica \
+  --master-instance-name=cryptotracker-primary \
+  --replica-type=READ \
+  --zone=us-central1-b
+```
+
+---
+
+## Disaster Recovery
+
+### Backup Strategy
+
+#### Database Backups
+
+```bash
+# Create backup script
+cat > /opt/backup-mysql.sh << 'EOF'
+#!/bin/bash
+BACKUP_DIR="/var/backups/mysql"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p $BACKUP_DIR
+
+mysqldump -u root -proot criptomonedas_db | gzip > $BACKUP_DIR/db_$DATE.sql.gz
+
+# Upload to Cloud Storage
+gsutil cp $BACKUP_DIR/db_$DATE.sql.gz gs://cryptotracker-backups/mysql/
+
+# Delete local backups older than 7 days
+find $BACKUP_DIR -name "db_*.sql.gz" -mtime +7 -delete
+EOF
+
+chmod +x /opt/backup-mysql.sh
+
+# Add to crontab (daily at 2 AM)
+0 2 * * * /opt/backup-mysql.sh
+```
+
+#### Application Backups
+
+```bash
+# Snapshot all VM disks
+gcloud compute disks snapshot DISK_NAME \
+  --snapshot-names=DISK_NAME-$(date +%Y%m%d) \
+  --zone=us-central1-a
+```
+
+### Recovery Procedures
+
+#### Database Restore
+
+```bash
+# Download backup
+gsutil cp gs://cryptotracker-backups/mysql/db_TIMESTAMP.sql.gz /tmp/
+
+# Restore
+gunzip /tmp/db_TIMESTAMP.sql.gz
+mysql -u root -p criptomonedas_db < /tmp/db_TIMESTAMP.sql
+```
+
+#### Service Restore
+
+```bash
+# Restore from disk snapshot
+gcloud compute disks create DISK_NAME-restored \
+  --source-snapshot=SNAPSHOT_NAME \
+  --zone=us-central1-a
+```
+
+---
+
+## Cost Optimization
+
+### Current Monthly Costs (Estimated)
+
+| Resource | Cost/Month (USD) |
+|----------|------------------|
+| VM1 (e2-micro) | ~$7 |
+| VM2 (e2-small) | ~$14 |
+| VM3 (e2-medium) | ~$28 |
+| VM4 (e2-standard-2) | ~$55 |
+| VM5 (e2-small) | ~$14 |
+| Persistent Disks | ~$10 |
+| Network Egress | ~$5-20 |
+| **Total** | **~$133-148/month** |
+
+### Optimization Strategies
+
+1. **Use Preemptible VMs** for non-critical services (70% cost reduction)
+2. **Committed Use Discounts** (up to 57% off)
+3. **Autoscaling** to scale down during low traffic
+4. **Regional Storage** instead of multi-regional
+5. **Compress Images** from GraficoService before transmission
+
+---
+
+## Deployment Checklist
+
+- [ ] Create GCP project
+- [ ] Enable Compute Engine API
+- [ ] Configure VPC network and firewall rules
+- [ ] Create static internal IP for MySQL (10.23.176.2)
+- [ ] Deploy MySQL VM and configure database
+- [ ] Create database schema and tables
+- [ ] Deploy RecolectorPrecios and verify data collection
+- [ ] Deploy WebServer and test /precios endpoint
+- [ ] Deploy GraficoService and test chart generation
+- [ ] Deploy frontend with NGINX
+- [ ] Configure systemd services for auto-restart
+- [ ] Set up monitoring and alerting
+- [ ] Configure log aggregation
+- [ ] Create backup schedule
+- [ ] Document IP addresses and credentials
+- [ ] Test end-to-end functionality
+- [ ] Load test services
+- [ ] Set up SSL certificates (Let's Encrypt)
+- [ ] Configure domain DNS records
+- [ ] Implement rate limiting
+- [ ] Security audit and hardening
+
+---
+
+## Troubleshooting
+
+### Service Not Starting
+
+```bash
+# Check systemd status
+sudo systemctl status SERVICE_NAME
+
+# View recent logs
+sudo journalctl -u SERVICE_NAME -n 50 --no-pager
+
+# Check Java process
+ps aux | grep java
+
+# Check port binding
+sudo netstat -tlnp | grep :8080
+```
+
+### Database Connection Issues
+
+```bash
+# Test MySQL connectivity
+mysql -h 10.23.176.2 -u root -p -e "SELECT 1;"
+
+# Check MySQL status
+sudo systemctl status mysql
+
+# View MySQL error log
+sudo tail -f /var/log/mysql/error.log
+
+# Verify firewall rules
+sudo ufw status
+gcloud compute firewall-rules list
+```
+
+### High Memory Usage
+
+```bash
+# Check memory usage
+free -h
+htop
+
+# Identify memory-hungry processes
+ps aux --sort=-%mem | head -n 10
+
+# Restart service to clear memory
+sudo systemctl restart SERVICE_NAME
+```
+
+### API Errors
+
+```bash
+# Test WebServer endpoint
+curl http://localhost:8080/status
+curl http://localhost:8080/precios
+
+# Test GraficoService endpoint
+curl http://localhost:8081/status
+curl "http://localhost:8081/grafico?crypto=bitcoin&horas=3" -o test.png
+
+# Check CoinGecko API
+curl "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+```
+
+---
+
+## Next Steps
+
+- [Architecture Overview](/architecture/overview) - Understand the system design
+- [Microservices Details](/architecture/microservices) - Deep dive into each service

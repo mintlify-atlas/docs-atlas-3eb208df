@@ -1,0 +1,154 @@
+---
+title: API Overview
+description: Complete reference for CryptoTracker Web API endpoints
+---
+
+The CryptoTracker Web API provides real-time cryptocurrency price data and visualization capabilities. All endpoints are RESTful and return either JSON data or PNG images.
+
+## Base URLs
+
+The API is deployed across multiple services:
+
+- **Price Service**: `http://your-server:8080`
+- **Graph Service**: `http://your-server:8081`
+- **Collector Service**: `http://your-server:8082`
+
+## Available Endpoints
+
+### Price Data
+- `GET /precios` - Get latest prices for all 10 cryptocurrencies
+- `GET /status` - Health check endpoint
+
+### Chart Generation
+- `GET /grafico` - Generate price chart for a single cryptocurrency
+- `GET /graficos-todas` - Generate composite chart for all cryptocurrencies
+- `GET /graficoCompara` - Compare multiple cryptocurrencies (normalized)
+- `GET /regresion` - Generate linear regression chart for price prediction
+
+## CORS Configuration
+
+All API endpoints support Cross-Origin Resource Sharing (CORS) with the following configuration:
+
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: *
+```
+
+Preflight `OPTIONS` requests are handled automatically and return a `204 No Content` response.
+
+## Authentication
+
+**No authentication is required** for any endpoint. All endpoints are publicly accessible.
+
+## Supported Cryptocurrencies
+
+The API tracks 10 major cryptocurrencies:
+
+| Name | Symbol | Table Name |
+|------|--------|------------|
+| Bitcoin | BTC | bitcoin |
+| Ethereum | ETH | ethereum |
+| XRP | XRP | ripple |
+| Solana | SOL | solana |
+| TRON | TRX | tron |
+| Dogecoin | DOGE | dogecoin |
+| Cardano | ADA | cardano |
+| Hyperliquid | HYPE | hyperliquid |
+| Bitcoin Cash | BCH | bitcoin_cash |
+| Chainlink | LINK | chainlink |
+
+## Rate Limiting
+
+There are currently no rate limits enforced. The API uses a thread pool of 8 workers for the price service and 4 workers for the graph service.
+
+## Data Collection
+
+Price data is collected from the CoinGecko API every 60 seconds and stored in a MySQL database. Historical data is retained for at least 24 hours.
+
+## Response Formats
+
+### JSON Responses
+
+Price endpoints return JSON with `Content-Type: application/json`:
+
+```json
+[
+  {
+    "name": "Bitcoin",
+    "symbol": "BTC",
+    "price": 97234.50
+  }
+]
+```
+
+### Image Responses
+
+Chart endpoints return PNG images with `Content-Type: image/png`.
+
+## Error Handling
+
+### HTTP Status Codes
+
+- `200` - Success
+- `204` - No Content (no data available for requested parameters)
+- `400` - Bad Request (invalid parameters)
+- `405` - Method Not Allowed (wrong HTTP method)
+- `500` - Internal Server Error (database or processing error)
+
+### Error Response Format
+
+JSON errors:
+```json
+{
+  "error": "Error description"
+}
+```
+
+Text errors:
+```
+Error description
+```
+
+## Example Usage
+
+### JavaScript (Fetch API)
+
+```javascript
+// Get latest prices
+fetch('http://your-server:8080/precios')
+  .then(response => response.json())
+  .then(data => console.log(data));
+
+// Display a chart
+const img = document.createElement('img');
+img.src = 'http://your-server:8081/grafico?crypto=bitcoin&horas=3';
+document.body.appendChild(img);
+```
+
+### Python
+
+```python
+import requests
+
+# Get latest prices
+response = requests.get('http://your-server:8080/precios')
+prices = response.json()
+
+# Download a chart
+response = requests.get('http://your-server:8081/grafico', 
+                       params={'crypto': 'bitcoin', 'horas': 3})
+with open('bitcoin_chart.png', 'wb') as f:
+    f.write(response.content)
+```
+
+### cURL
+
+```bash
+# Get latest prices
+curl http://your-server:8080/precios
+
+# Download a chart
+curl "http://your-server:8081/grafico?crypto=bitcoin&horas=3" \
+  -o bitcoin_chart.png
+```

@@ -1,0 +1,291 @@
+---
+title: 'RecolectorPrecios Service'
+description: 'Scheduled task service that fetches cryptocurrency prices from CoinGecko API every 60 seconds'
+---
+
+## Overview
+
+The **RecolectorPrecios** service is a Java-based background task that continuously fetches cryptocurrency prices from the CoinGecko API and stores them in a MySQL database. It runs as a scheduled task that executes every 60 seconds.
+
+### Service Configuration
+
+```java
+private static final String URL_API = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin-cash,chainlink&vs_currencies=usd";
+private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+## Main Entry Point
+
+The service initializes an HTTP server and starts a timer that executes the price collection task:
+
+```java
+public static void main(String[] args) {
+    int serverPort = 8082;
+    
+    WebServer webServer = new WebServer(serverPort);
+    webServer.startServer();
+    
+    System.out.println("Servidor escuchando en el puerto " + serverPort);
+    
+    Timer temporizador = new Timer();
+    temporizador.schedule(new TareaObtenerPrecios(), 0, 60_000); // Cada 60 segundos
+}
+```
+
+**Key Features:**
+- Runs on port 8082
+- Executes immediately on startup (`delay = 0`)
+- Repeats every 60 seconds (`period = 60_000` milliseconds)
+
+## TareaObtenerPrecios Class
+
+The core scheduled task that fetches and stores cryptocurrency prices:
+
+```java
+static class TareaObtenerPrecios extends TimerTask {
+    private final HttpClient cliente = HttpClient.newHttpClient();
+    
+    @Override
+    public void run() {
+        HttpRequest solicitud = HttpRequest.newBuilder()
+                .uri(URI.create(URL_API))
+                .GET()
+                .build();
+        
+        cliente.sendAsync(solicitud, HttpResponse.BodyHandlers.ofString())
+               .thenApply(HttpResponse::body)
+               .thenAccept(this::transformarYGuardarPrecios)
+               .exceptionally(error -> {
+                   System.err.println("Error al obtener precios: " + error.getMessage());
+                   return null;
+               });
+    }
+    
+    // ... implementation details below
+}
+```
+
+### Asynchronous API Call
+
+The task uses Java's modern `HttpClient` with asynchronous requests:
+
+- **Non-blocking:** Uses `sendAsync()` instead of blocking `send()`
+- **Promise-based:** Chains operations with `thenApply()` and `thenAccept()`
+- **Error handling:** Uses `exceptionally()` to catch failures
+
+## CoinGecko API Integration
+
+### API Request Format
+
+The service requests prices for all 10 cryptocurrencies in a single API call:
+
+```
+https://api.coingecko.com/api/v3/simple/price
+  ?ids=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin-cash,chainlink
+  &vs_currencies=usd
+```
+
+### Expected Response Format
+
+```json
+{
+  "bitcoin": {"usd": 45678.50},
+  "ethereum": {"usd": 2345.67},
+  "ripple": {"usd": 0.52},
+  "solana": {"usd": 98.34},
+  "tron": {"usd": 0.08},
+  "dogecoin": {"usd": 0.07},
+  "cardano": {"usd": 0.45},
+  "hyperliquid": {"usd": 12.50},
+  "bitcoin-cash": {"usd": 234.56},
+  "chainlink": {"usd": 14.78}
+}
+```
+
+## Price Parsing and Storage
+
+The `transformarYGuardarPrecios` method parses the JSON response and inserts prices into the database:
+
+```java
+private void transformarYGuardarPrecios(String jsonOriginal) {
+    try {
+        // Nombres de tabla
+        String[] criptos = {"bitcoin", "ethereum", "ripple", "solana", "tron", 
+                "dogecoin", "cardano", "hyperliquid", "bitcoin_cash", "chainlink"};
+        
+        jsonOriginal = jsonOriginal.substring(1, jsonOriginal.length() - 1); // Elimina llaves externas {}
+        String[] monedas = jsonOriginal.split(",(?=\\\"[a-z])"); // Divide por comas seguidas de comillas
+        
+        System.out.println("\n");
+        
+        try (Connection conexion = DriverManager.getConnection(DB_URL)) {
+            for (int i = 0; i < monedas.length; i++) {
+                String moneda = monedas[i].trim();
+                String precioStr = moneda.split(":")[2].replace("}", "").trim();
+                double precio = Double.parseDouble(precioStr);
+                
+                // Insertar en la base de datos
+                String tabla = criptos[i];
+                String sql = "INSERT INTO " + tabla + " (precio) VALUES (?)";
+                
+                try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
+                    pstmt.setDouble(1, precio);
+                    pstmt.executeUpdate();
+                    System.out.println(tabla + ": precio=" + precio);
+                }
+            }
+        }
+    } catch (Exception e) {
+        System.err.println("Error al procesar datos: " + e.getMessage());
+    }
+}
+```
+
+### Parsing Strategy
+
+1. **Remove outer braces:** `jsonOriginal.substring(1, jsonOriginal.length() - 1)`
+2. **Split by cryptocurrency:** Uses regex `",(?=\\"[a-z])"` to split on commas followed by quotes
+3. **Extract price:** Splits by `:` and takes the third element (the USD value)
+4. **Parse as double:** Converts string to `double` type
+
+### Database Insertion
+
+For each cryptocurrency:
+
+```java
+String sql = "INSERT INTO " + tabla + " (precio) VALUES (?)";
+try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
+    pstmt.setDouble(1, precio);
+    pstmt.executeUpdate();
+    System.out.println(tabla + ": precio=" + precio);
+}
+```
+
+**Key Points:**
+- Uses `PreparedStatement` to prevent SQL injection
+- The `fecha_registro` column is automatically populated by the database (timestamp default)
+- Each cryptocurrency has its own table
+
+## Database Schema
+
+Each cryptocurrency table follows this structure:
+
+```sql
+CREATE TABLE bitcoin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    precio DECIMAL(18, 8) NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+The same structure is replicated for all 10 cryptocurrencies:
+- `bitcoin`
+- `ethereum`
+- `ripple`
+- `solana`
+- `tron`
+- `dogecoin`
+- `cardano`
+- `hyperliquid`
+- `bitcoin_cash` (note: API uses `bitcoin-cash` with hyphen)
+- `chainlink`
+
+## Status Endpoint
+
+The service also provides a health check endpoint:
+
+```java
+private void handleStatusCheckRequest(HttpExchange exchange) throws IOException {
+    if (!exchange.getRequestMethod().equalsIgnoreCase("get")) {
+        exchange.close();
+        return;
+    }
+    
+    String responseMessage = "El servidor está vivo\n";
+    sendResponse(responseMessage.getBytes(), exchange, "text/plain");
+}
+```
+
+Access via:
+```
+GET http://localhost:8082/status
+```
+
+## Console Output
+
+The service logs each price update to the console:
+
+```
+bitcoin: precio=45678.5
+ethereum: precio=2345.67
+ripple: precio=0.52
+solana: precio=98.34
+tron: precio=0.08
+dogecoin: precio=0.07
+cardano: precio=0.45
+hyperliquid: precio=12.5
+bitcoin_cash: precio=234.56
+chainlink: precio=14.78
+```
+
+## Error Handling
+
+The service handles two types of errors:
+
+### Network/API Errors
+
+```java
+.exceptionally(error -> {
+    System.err.println("Error al obtener precios: " + error.getMessage());
+    return null;
+});
+```
+
+### Parsing/Database Errors
+
+```java
+catch (Exception e) {
+    System.err.println("Error al procesar datos: " + e.getMessage());
+}
+```
+
+**Resilience:** The service continues running even if individual requests fail. The next scheduled execution will attempt to fetch prices again.
+
+## Running the Service
+
+### Compilation and Execution
+
+```bash
+# Compile
+javac -cp ".;lib/*" RecolectorPrecios.java
+
+# Run
+java -cp ".;lib/*" RecolectorPrecios
+```
+
+### Expected Output
+
+```
+Servidor escuchando en el puerto 8082
+
+bitcoin: precio=45678.5
+ethereum: precio=2345.67
+...
+
+(repeats every 60 seconds)
+```
+
+## Integration with Other Services
+
+The RecolectorPrecios service works in conjunction with:
+
+1. **WebServer (port 8080):** Reads the prices stored by this service
+2. **GraficoService (port 8081):** Queries the price history for chart generation
+3. **MySQL Database:** Central storage for all historical price data
+
+## Architecture Notes
+
+- **Separation of Concerns:** Data collection is separate from data serving
+- **Background Processing:** Runs independently without blocking other services
+- **Time-series Data:** Each insert creates a new record with timestamp, enabling historical analysis
+- **Scalability:** Could be extended to run multiple collectors for different data sources

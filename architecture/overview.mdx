@@ -1,0 +1,301 @@
+---
+title: 'Architecture Overview'
+description: 'Understanding the CryptoTracker Web distributed system architecture'
+---
+
+## System Architecture
+
+CryptoTracker Web is a distributed microservices-based application designed to track and visualize cryptocurrency prices in real-time. The system is built with a Java backend and a lightweight HTML/JavaScript frontend, deployed on Google Cloud Platform.
+
+## High-Level Architecture
+
+The application consists of four main components deployed across separate Google Cloud VM instances:
+
+```
+┌─────────────────┐         ┌──────────────────┐
+│   CoinGecko API │────────▶│ RecolectorPrecios│
+│   (External)    │         │    Port: 8082    │
+└─────────────────┘         └────────┬─────────┘
+                                     │
+                                     ▼
+                            ┌─────────────────┐
+                            │  MySQL Database │
+                            │  10.23.176.2    │
+                            └────────┬────────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+           ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+           │  WebServer  │  │GraficoService│  │   Frontend  │
+           │ Port: 8080  │  │ Port: 8081   │  │   (NGINX)   │
+           └─────────────┘  └─────────────┘  └─────────────┘
+```
+
+## Core Components
+
+### 1. RecolectorPrecios (Price Collector)
+**Port:** 8082  
+**Purpose:** Data acquisition and persistence
+
+This service is responsible for:
+- Fetching cryptocurrency prices from CoinGecko API every 60 seconds
+- Parsing JSON responses and extracting price data for 10 cryptocurrencies
+- Storing historical price data in MySQL database
+- Providing a `/status` health check endpoint
+
+**Tracked Cryptocurrencies:**
+- Bitcoin (BTC)
+- Ethereum (ETH)
+- XRP (XRP)
+- Solana (SOL)
+- TRON (TRX)
+- Dogecoin (DOGE)
+- Cardano (ADA)
+- Hyperliquid (HYPE)
+- Bitcoin Cash (BCH)
+- Chainlink (LINK)
+
+### 2. WebServer
+**Port:** 8080  
+**Purpose:** RESTful API for current price data
+
+The WebServer provides JSON endpoints for the frontend:
+- `/status` - Health check endpoint
+- `/precios` - Returns the latest price for all tracked cryptocurrencies
+
+This service queries the MySQL database to retrieve the most recent price entry for each cryptocurrency and returns formatted JSON with CORS support enabled.
+
+### 3. GraficoService (Chart Service)
+**Port:** 8081  
+**Purpose:** Data visualization and analytics
+
+The chart service generates dynamic PNG images for various visualizations:
+- `/grafico` - Individual cryptocurrency price charts over time
+- `/graficoCompara` - Comparative charts for multiple cryptocurrencies
+- `/graficos-todas` - Grid view of all 10 cryptocurrencies
+- `/regresion` - Linear regression analysis for price trends
+- `/status` - Health check endpoint
+
+All charts are generated server-side using the XChart library and returned as PNG images.
+
+### 4. Frontend (NGINX)
+**Purpose:** User interface and presentation layer
+
+A single-page application served by NGINX that provides:
+- Real-time price dashboard
+- Interactive chart controls
+- Comparison tools
+- Responsive design with modern UI/UX
+
+## Data Flow
+
+### Price Collection Flow
+
+1. **Data Acquisition:** `RecolectorPrecios` makes HTTP requests to CoinGecko API
+2. **Data Parsing:** JSON response is parsed to extract USD prices
+3. **Data Storage:** Prices are inserted into individual MySQL tables (one per cryptocurrency)
+4. **Scheduled Execution:** Process repeats every 60 seconds using Java `Timer`
+
+```java
+// RecolectorPrecios.java:47
+Timer temporizador = new Timer();
+temporizador.schedule(new TareaObtenerPrecios(), 0, 60_000);
+```
+
+### Price Query Flow
+
+1. **Frontend Request:** User loads the web interface
+2. **API Call:** JavaScript makes GET request to `WebServer:8080/precios`
+3. **Database Query:** WebServer queries MySQL for latest prices
+4. **Response:** JSON array returned with current prices
+5. **Display:** Frontend updates the UI with latest data
+
+```java
+// WebServer.java:135-179
+private List<CryptoPrice> obtenerUltimosPreciosDeBD() throws SQLException {
+    // Queries each cryptocurrency table for most recent price
+    String sql = "SELECT precio FROM " + tabla + " ORDER BY fecha_registro DESC LIMIT 1";
+    // ...
+}
+```
+
+### Chart Generation Flow
+
+1. **Chart Request:** User requests a chart with specific parameters
+2. **API Call:** Frontend makes GET request to `GraficoService:8081/grafico`
+3. **Data Retrieval:** Service queries MySQL for historical data within time range
+4. **Chart Generation:** XChart library creates PNG image from data
+5. **Image Delivery:** PNG bytes streamed back to browser
+
+## MySQL Database
+
+### Connection Details
+- **Host:** 10.23.176.2 (Internal GCP network)
+- **Port:** 3306
+- **Database:** criptomonedas_db
+- **SSL:** Enabled
+
+### Schema Structure
+
+The database uses a **table-per-cryptocurrency** pattern:
+
+```sql
+-- Example table structure (repeated for each cryptocurrency)
+CREATE TABLE bitcoin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    precio DECIMAL(18,2) NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Tables:**
+- `bitcoin`
+- `ethereum`
+- `ripple`
+- `solana`
+- `tron`
+- `dogecoin`
+- `cardano`
+- `hyperliquid`
+- `bitcoin_cash`
+- `chainlink`
+
+Each table stores:
+- `precio` - The USD price at the time of recording
+- `fecha_registro` - Timestamp of when the price was recorded
+
+## CoinGecko API Integration
+
+### API Endpoint
+```
+https://api.coingecko.com/api/v3/simple/price
+  ?ids=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin-cash,chainlink
+  &vs_currencies=usd
+```
+
+### Response Format
+```json
+{
+  "bitcoin": {"usd": 43250.50},
+  "ethereum": {"usd": 2280.75},
+  "ripple": {"usd": 0.52},
+  // ...
+}
+```
+
+### Implementation
+
+The service uses Java 11's `HttpClient` with asynchronous processing:
+
+```java
+// RecolectorPrecios.java:97-108
+HttpRequest solicitud = HttpRequest.newBuilder()
+    .uri(URI.create(URL_API))
+    .GET()
+    .build();
+
+cliente.sendAsync(solicitud, HttpResponse.BodyHandlers.ofString())
+    .thenApply(HttpResponse::body)
+    .thenAccept(this::transformarYGuardarPrecios)
+    .exceptionally(error -> {
+        System.err.println("Error al obtener precios: " + error.getMessage());
+        return null;
+    });
+```
+
+## Communication Patterns
+
+### Inter-Service Communication
+- **Pattern:** Database-Centric
+- **Coupling:** Loose coupling through shared database
+- **Synchronization:** Asynchronous data collection, synchronous queries
+
+### Frontend-Backend Communication
+- **Protocol:** HTTP/REST
+- **Format:** JSON (WebServer), PNG images (GraficoService)
+- **CORS:** Enabled on all backend services with wildcard origin
+
+### Service Independence
+
+Each microservice:
+- Runs as an independent Java process
+- Has its own embedded HTTP server (`com.sun.net.httpserver.HttpServer`)
+- Can be deployed, scaled, and maintained independently
+- Shares only the MySQL database connection
+
+## Technology Stack
+
+### Backend
+- **Language:** Java 17
+- **HTTP Server:** `com.sun.net.httpserver.HttpServer` (embedded)
+- **Chart Library:** XChart (for PNG generation)
+- **Database Driver:** MySQL Connector/J (JDBC)
+- **HTTP Client:** Java 11 HttpClient
+
+### Frontend
+- **HTML5** with vanilla JavaScript
+- **CSS3** with modern gradients and animations
+- **Font Awesome** for icons
+- **No framework dependencies**
+
+### Infrastructure
+- **Cloud Provider:** Google Cloud Platform (GCP)
+- **Compute:** Compute Engine VMs
+- **Database:** MySQL on Compute Engine
+- **Web Server:** NGINX for static content
+- **Networking:** Internal VPC for database access
+
+## Scalability Considerations
+
+### Current Architecture
+- Single instance per service
+- Shared MySQL database (potential bottleneck)
+- Synchronous database queries
+
+### Potential Improvements
+- **Horizontal Scaling:** Add load balancer for WebServer and GraficoService
+- **Caching:** Implement Redis for frequently accessed price data
+- **Database:** Consider read replicas or time-series database (InfluxDB)
+- **Message Queue:** Add Kafka/RabbitMQ for decoupling data collection
+- **CDN:** Cache chart images for popular queries
+
+## Reliability Features
+
+### Health Checks
+All services expose `/status` endpoints:
+```java
+// Returns "OK" or "El servidor está vivo"
+exchange.sendResponseHeaders(200, response.length());
+```
+
+### Error Handling
+- SQL exceptions caught and logged
+- API failures handled with error messages
+- CORS preflight requests supported
+
+### Thread Pools
+```java
+// All services use fixed thread pools
+server.setExecutor(Executors.newFixedThreadPool(8));
+```
+
+## Security Considerations
+
+### Current Implementation
+- MySQL credentials in source code (hardcoded)
+- Wildcard CORS policy (`Access-Control-Allow-Origin: *`)
+- No authentication on API endpoints
+- SSL enabled for MySQL connections
+
+### Production Recommendations
+- Move credentials to environment variables or secret manager
+- Implement API authentication (JWT or API keys)
+- Restrict CORS to specific origins
+- Add rate limiting
+- Implement request validation and sanitization
+
+## Next Steps
+
+To learn more about the architecture:
+- [Microservices Details](/architecture/microservices) - Deep dive into each service
+- [Deployment Guide](/architecture/deployment) - GCP deployment configuration

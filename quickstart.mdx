@@ -1,80 +1,410 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Step-by-step guide to set up and run CryptoTracker Web locally
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through setting up CryptoTracker Web on your local machine.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before you begin, ensure you have the following installed:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Java 17" icon="java">
+    Required for running all backend services. Download from [Oracle](https://www.oracle.com/java/technologies/downloads/) or use OpenJDK.
+  </Card>
+  
+  <Card title="MySQL" icon="database">
+    Database for storing historical cryptocurrency prices. Download [MySQL Community Server](https://dev.mysql.com/downloads/mysql/).
+  </Card>
 </CardGroup>
 
+### Required Java Libraries
+
+The project includes the following dependencies in the `lib/` directory:
+
+- `mysql-connector-j-9.3.0.jar` - JDBC driver for MySQL connectivity
+- `xchart-3.8.8.jar` - Chart generation library
+- `xchart-demo-3.8.8.jar` - XChart demo utilities
+
+These are already included in the source code repository.
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone or download the CryptoTracker Web source code:
+    
+    ```bash
+    # If using git
+    git clone <repository-url>
+    cd cryptotracker-web
+    ```
+  </Step>
+  
+  <Step title="Set Up MySQL Database">
+    Create the database and tables for storing cryptocurrency prices.
+    
+    ### Create Database
+    
+    ```sql
+    CREATE DATABASE criptomonedas_db;
+    USE criptomonedas_db;
+    ```
+    
+    ### Create Tables
+    
+    Create one table for each cryptocurrency:
+    
+    ```sql
+    CREATE TABLE bitcoin (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE ethereum (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE ripple (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE solana (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE tron (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE dogecoin (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE cardano (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE hyperliquid (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE bitcoin_cash (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE chainlink (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DOUBLE NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    ```
+  </Step>
+  
+  <Step title="Configure Database Connection">
+    Update the database connection strings in each Java file to match your local MySQL setup.
+    
+    ### For Local Development
+    
+    In `RecolectorPrecios.java:30-31`, `WebServer.java:24-26`, and `GraficoService.java:37-39`, update the `DB_URL`:
+    
+    ```java
+    // Change this:
+    private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+    
+    // To this (for local MySQL on default port 3306):
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/criptomonedas_db?user=root&password=YOUR_PASSWORD&useSSL=false&allowPublicKeyRetrieval=true";
+    
+    // Or if using port 3308 (as mentioned in comments):
+    private static final String DB_URL = "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=YOUR_PASSWORD&useSSL=false&allowPublicKeyRetrieval=true";
+    ```
+    
+    Replace `YOUR_PASSWORD` with your MySQL root password.
+  </Step>
+  
+  <Step title="Compile the Java Services">
+    Navigate to the `java/` directory and compile each service:
+    
+    ### On Windows:
+    
+    ```bash
+    # Compile RecolectorPrecios
+    javac -cp ".;../lib/*" RecolectorPrecios.java
+    
+    # Compile WebServer
+    javac -cp ".;../lib/*" WebServer.java
+    
+    # Compile GraficoService
+    javac -cp ".;../lib/*" java/GraficoService.java
+    ```
+    
+    ### On Linux/Mac:
+    
+    ```bash
+    # Compile RecolectorPrecios
+    javac -cp ".:../lib/*" RecolectorPrecios.java
+    
+    # Compile WebServer
+    javac -cp ".:../lib/*" WebServer.java
+    
+    # Compile GraficoService
+    javac -cp ".:../lib/*" java/GraficoService.java
+    ```
+    
+    <Note>
+    The comments in `RecolectorPrecios.java:22-23` and `WebServer.java:16-17` show the exact compile commands for local development.
+    </Note>
+  </Step>
+  
+  <Step title="Start the Services">
+    Run each service in a separate terminal window:
+    
+    ### Terminal 1 - Price Collector (Port 8082)
+    
+    ```bash
+    # Windows
+    java -cp ".;lib/*" RecolectorPrecios
+    
+    # Linux/Mac
+    java -cp ".:lib/*" RecolectorPrecios
+    ```
+    
+    You should see:
+    ```
+    Servidor escuchando en el puerto 8082
+    ```
+    
+    The service will start collecting prices every 60 seconds and display output like:
+    ```
+    bitcoin: precio=45000.23
+    ethereum: precio=3200.45
+    ...
+    ```
+    
+    ### Terminal 2 - Web Server (Port 8080)
+    
+    ```bash
+    # Windows
+    java -cp ".;lib/*" WebServer
+    
+    # Linux/Mac
+    java -cp ".:lib/*" WebServer
+    ```
+    
+    You should see:
+    ```
+    Servidor escuchando en el puerto 8080
+    ```
+    
+    ### Terminal 3 - Chart Service (Port 8081)
+    
+    ```bash
+    # Windows
+    java -cp ".;lib/*" java.GraficoService
+    
+    # Linux/Mac
+    java -cp ".:lib/*" java.GraficoService
+    ```
+    
+    You should see:
+    ```
+    GraficoService escuchando en http://localhost:8081/grafico
+    ```
+  </Step>
+  
+  <Step title="Configure and Open the Frontend">
+    Update the API endpoints in `frontend/index.html` to point to your local services.
+    
+    ### Update API URLs (lines 638-639)
+    
+    ```javascript
+    // Change this:
+    const API_BASE_URL = "http://34.36.237.99";
+    const CHART_API_BASE_URL = "http://34.36.237.99";
+    
+    // To this:
+    const API_BASE_URL = "http://localhost:8080";
+    const CHART_API_BASE_URL = "http://localhost:8081";
+    ```
+    
+    ### Open the Frontend
+    
+    Simply open `frontend/index.html` in your web browser:
+    
+    ```bash
+    # On Mac
+    open frontend/index.html
+    
+    # On Linux
+    xdg-open frontend/index.html
+    
+    # On Windows
+    start frontend/index.html
+    ```
+    
+    <Tip>
+    For better CORS support, consider serving the frontend through a local web server like Python's `http.server` or using the Live Server extension in VS Code.
+    </Tip>
+  </Step>
+</Steps>
+
+## Using the Application
+
+Once all services are running, you can access the five main features:
+
+### 1. Real-Time Prices
+
+The dashboard displays current prices for all 10 cryptocurrencies, automatically refreshing every 60 seconds.
+
+**API Endpoint:** `GET http://localhost:8080/precios`
+
+### 2. Individual Cryptocurrency Chart
+
+Generate a price variation chart for a specific cryptocurrency over a custom time period (1-24 hours).
+
+**API Endpoint:** `GET http://localhost:8081/grafico?crypto=bitcoin&horas=3`
+
+**Example:** View Bitcoin's price over the last 3 hours
+
+### 3. All Cryptocurrencies Grid
+
+View a grid of all 10 cryptocurrency charts simultaneously.
+
+**API Endpoint:** `GET http://localhost:8081/graficos-todas?horas=24`
+
+**Example:** See all cryptos over the last 24 hours
+
+### 4. Comparison Chart
+
+Compare multiple cryptocurrencies with normalized prices over a specific time range.
+
+**API Endpoint:**
+```
+GET http://localhost:8081/graficoCompara?cryptos=ethereum,ripple,solana&inicio=2025-06-27T15:00&fin=2025-06-27T16:00
+```
+
+**Example:** Compare Ethereum, XRP, and Solana from 3 PM to 4 PM
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+The comparison endpoint normalizes prices to a 0-1 scale for fair comparison between assets with vastly different price ranges.
 </Note>
+
+### 5. Linear Regression Analysis
+
+Perform linear regression analysis on a cryptocurrency's price data to identify trends.
+
+**API Endpoint:** `GET http://localhost:8081/regresion?crypto=bitcoin&inicio=10&fin=12`
+
+**Parameters:**
+- `crypto` - Cryptocurrency name (e.g., bitcoin, ethereum)
+- `inicio` - Start hour (0-23)
+- `fin` - End hour (1-24)
+
+**Output:** Chart with actual data points, regression line, equation (y = mx + b), and R² coefficient
+
+## Testing the API
+
+You can test the endpoints directly using curl or your browser:
+
+```bash
+# Check service health
+curl http://localhost:8080/status
+curl http://localhost:8081/status
+curl http://localhost:8082/status
+
+# Get current prices (JSON)
+curl http://localhost:8080/precios
+
+# Get a chart (PNG image)
+curl http://localhost:8081/grafico?crypto=bitcoin&horas=3 --output bitcoin.png
+```
+
+## Running with Pre-built JARs
+
+Alternatively, you can use the pre-built JAR files in the `jar/` directory:
+
+```bash
+# Run RecolectorPrecios
+java -jar jar/RecolectorPrecios-1.0-SNAPSHOT.jar
+
+# Run WebServer
+java -jar jar/WebServer-1.0-SNAPSHOT.jar
+
+# Run GraficoService
+java -jar jar/GraficoService-1.0-SNAPSHOT.jar
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Services can't connect to database">
+    **Error:** `SQLException: Communications link failure`
+    
+    **Solution:**
+    - Verify MySQL is running: `mysql -u root -p`
+    - Check the database exists: `SHOW DATABASES;`
+    - Confirm the DB_URL in Java files matches your MySQL configuration
+    - Ensure the MySQL user has proper permissions: `GRANT ALL PRIVILEGES ON criptomonedas_db.* TO 'root'@'localhost';`
+  </Accordion>
+  
+  <Accordion title="ClassNotFoundException: com.mysql.cj.jdbc.Driver">
+    **Error:** JDBC driver not found
+    
+    **Solution:**
+    - Ensure `mysql-connector-j-9.3.0.jar` is in the `lib/` directory
+    - Use the correct classpath when compiling and running: `-cp ".;lib/*"` (Windows) or `-cp ".:lib/*"` (Linux/Mac)
+  </Accordion>
+  
+  <Accordion title="Frontend can't load data">
+    **Error:** CORS errors or failed fetch requests
+    
+    **Solution:**
+    - Verify all three services are running
+    - Check the API URLs in `index.html` lines 638-639 match your service ports
+    - Open browser developer tools (F12) and check the Console for specific errors
+    - Ensure CORS headers are being sent (already configured in the Java services)
+  </Accordion>
+  
+  <Accordion title="No data in charts">
+    **Error:** Empty charts or "No Content" errors
+    
+    **Solution:**
+    - Wait at least 1-2 minutes after starting RecolectorPrecios for data to accumulate
+    - Check the RecolectorPrecios terminal for successful price insertions
+    - Query the database directly: `SELECT COUNT(*) FROM bitcoin;`
+    - Reduce the time range (e.g., try 1 hour instead of 24)
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have CryptoTracker Web running locally, you can:
+
+- Explore the microservices architecture by examining each Java file
+- Modify the frontend styling in `index.html` to customize the interface
+- Add additional cryptocurrencies by updating the crypto mappings in all three services
+- Deploy to Google Cloud Compute Engine for production use
+
+<Card title="Need Help?" icon="question">
+  If you encounter issues not covered in this guide, check the comments in the source code files for additional configuration notes.
+</Card>

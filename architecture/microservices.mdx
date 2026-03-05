@@ -1,0 +1,818 @@
+---
+title: 'Microservices Details'
+description: 'Deep dive into the three Java microservices that power CryptoTracker Web'
+---
+
+## Microservices Architecture
+
+CryptoTracker Web consists of three independent Java microservices, each running on its own port and serving a specific purpose in the distributed system.
+
+## Service Overview
+
+| Service | Port | Purpose | Dependencies |
+|---------|------|---------|-------------|
+| WebServer | 8080 | REST API for price data | MySQL |
+| GraficoService | 8081 | Chart generation and visualization | MySQL, XChart |
+| RecolectorPrecios | 8082 | Price collection and persistence | MySQL, CoinGecko API |
+
+---
+
+## WebServer (Port 8080)
+
+### Purpose
+Provides RESTful JSON endpoints for accessing current cryptocurrency prices. Acts as the primary data API for the frontend application.
+
+### Key Components
+
+#### Main Class Structure
+```java
+public class WebServer {
+    private static final String STATUS_ENDPOINT = "/status";
+    private static final String PRECIOS_ENDPOINT = "/precios";
+    private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db";
+    
+    private final int port;
+    private HttpServer server;
+}
+```
+
+### Endpoints
+
+#### GET /status
+Health check endpoint that returns server status.
+
+**Response:**
+```
+El servidor está vivo
+```
+
+**Implementation:**
+```java
+// WebServer.java:65-73
+private void handleStatusCheckRequest(HttpExchange exchange) throws IOException {
+    if (!exchange.getRequestMethod().equalsIgnoreCase("get")) {
+        exchange.close();
+        return;
+    }
+    
+    String responseMessage = "El servidor está vivo\n";
+    sendResponse(responseMessage.getBytes(), exchange, "text/plain");
+}
+```
+
+#### GET /precios
+Returns the latest price for all tracked cryptocurrencies.
+
+**Response Format:**
+```json
+[
+  {"name":"Bitcoin","symbol":"BTC","price":43250.50},
+  {"name":"Ethereum","symbol":"ETH","price":2280.75},
+  {"name":"XRP","symbol":"XRP","price":0.52},
+  // ... more cryptocurrencies
+]
+```
+
+**Implementation:**
+```java
+// WebServer.java:79-105
+private void handlePreciosRequest(HttpExchange exchange) throws IOException {
+    // Handle CORS preflight
+    if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+        Headers headers = exchange.getResponseHeaders();
+        headers.add("Access-Control-Allow-Origin", "*");
+        headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        headers.add("Access-Control-Allow-Headers", "*");
+        exchange.sendResponseHeaders(204, -1);
+        exchange.close();
+        return;
+    }
+    
+    try {
+        List<CryptoPrice> precios = obtenerUltimosPreciosDeBD();
+        String jsonResponse = generarJsonManual(precios);
+        sendResponse(jsonResponse.getBytes(), exchange, "application/json");
+    } catch (SQLException e) {
+        e.printStackTrace();
+        String error = "{\"error\": \"Error al consultar la base de datos\"}";
+        sendResponse(error.getBytes(), exchange, "application/json");
+    }
+}
+```
+
+### Database Query Logic
+
+The service maintains a map of cryptocurrency table names:
+
+```java
+// WebServer.java:147-157
+Map<String, String[]> criptos = Map.of(
+    "bitcoin", new String[] { "Bitcoin", "BTC" },
+    "ethereum", new String[] { "Ethereum", "ETH" },
+    "ripple", new String[] { "XRP", "XRP" },
+    "solana", new String[] { "Solana", "SOL" },
+    "tron", new String[] { "TRON", "TRX" },
+    "dogecoin", new String[] { "Dogecoin", "DOGE" },
+    "cardano", new String[] { "Cardano", "ADA" },
+    "hyperliquid", new String[] { "Hyperliquid", "HYPE" },
+    "bitcoin_cash", new String[] { "Bitcoin Cash", "BCH" },
+    "chainlink", new String[] { "Chainlink", "LINK" }
+);
+```
+
+For each cryptocurrency, it executes:
+
+```java
+// WebServer.java:165-174
+String sql = "SELECT precio FROM " + tabla + " ORDER BY fecha_registro DESC LIMIT 1";
+
+try (PreparedStatement pstmt = conexion.prepareStatement(sql);
+     ResultSet rs = pstmt.executeQuery()) {
+    
+    if (rs.next()) {
+        double precio = rs.getDouble("precio");
+        precios.add(new CryptoPrice(nombre, simbolo, precio));
+    }
+}
+```
+
+### Inner Classes
+
+#### CryptoPrice
+```java
+// WebServer.java:200-210
+private static class CryptoPrice {
+    final String name;
+    final String symbol;
+    final double price;
+    
+    public CryptoPrice(String name, String symbol, double price) {
+        this.name = name;
+        this.symbol = symbol;
+        this.price = price;
+    }
+}
+```
+
+### CORS Configuration
+
+All responses include CORS headers for cross-origin access:
+
+```java
+// WebServer.java:185-196
+private void sendResponse(byte[] responseBytes, HttpExchange exchange, String contentType) {
+    Headers headers = exchange.getResponseHeaders();
+    headers.add("Content-Type", contentType);
+    headers.add("Access-Control-Allow-Origin", "*");
+    headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    headers.add("Access-Control-Allow-Headers", "*");
+    
+    exchange.sendResponseHeaders(200, responseBytes.length);
+    // ...
+}
+```
+
+### Thread Pool Configuration
+
+```java
+// WebServer.java:61-62
+server.setExecutor(Executors.newFixedThreadPool(8));
+server.start();
+```
+
+---
+
+## GraficoService (Port 8081)
+
+### Purpose
+Generates dynamic PNG charts for cryptocurrency price visualization, comparison, and analysis. This is the most feature-rich service in the system.
+
+### Key Components
+
+#### Main Class Structure
+```java
+public class GraficoService {
+    private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db";
+    private static final int PORT = 8081;
+    
+    private static final Map<String, String[]> CRIPTOS = Map.of(
+        "bitcoin", new String[] { "Bitcoin", "BTC" },
+        // ... other cryptocurrencies
+    );
+}
+```
+
+### Endpoints
+
+#### GET /status
+Health check endpoint.
+
+**Response:** `"OK"`
+
+#### GET /grafico
+Generates a price variation chart for a single cryptocurrency.
+
+**Parameters:**
+- `crypto` (required) - Cryptocurrency name (e.g., "bitcoin")
+- `horas` (optional) - Number of hours to display (1-24, default: 3)
+
+**Example:**
+```
+http://localhost:8081/grafico?crypto=bitcoin&horas=6
+```
+
+**Response:** PNG image (800x450px)
+
+**Implementation:**
+```java
+// GraficoService.java:79-128
+private static void handleGraficoRequest(HttpExchange exchange) throws IOException {
+    setCORSHeaders(exchange);
+    
+    if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+        handleOptionsRequest(exchange);
+        return;
+    }
+    
+    Map<String, String> params = parseQuery(exchange.getRequestURI().getQuery());
+    String crypto = params.getOrDefault("crypto", "").toLowerCase();
+    int horas = Integer.parseInt(params.getOrDefault("horas", "3"));
+    
+    if (crypto.isEmpty() || horas <= 0 || horas > 24) {
+        String error = "Parámetros inválidos. Usa ?crypto=bitcoin&horas=3";
+        exchange.sendResponseHeaders(400, error.length());
+        return;
+    }
+    
+    try {
+        List<Registro> registros = obtenerDatos(crypto, horas);
+        if (registros.isEmpty()) {
+            exchange.sendResponseHeaders(204, -1);
+            return;
+        }
+        
+        byte[] imageBytes = generarGraficoPNG(crypto, registros);
+        exchange.getResponseHeaders().set("Content-Type", "image/png");
+        exchange.sendResponseHeaders(200, imageBytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(imageBytes);
+        }
+    } catch (SQLException e) {
+        // Error handling
+    }
+}
+```
+
+#### GET /graficos-todas
+Generates a grid of charts showing all 10 cryptocurrencies.
+
+**Parameters:**
+- `horas` (optional) - Time range in hours (1-24, default: 24)
+
+**Example:**
+```
+http://localhost:8081/graficos-todas?horas=12
+```
+
+**Response:** PNG image with 5x2 grid of charts
+
+**Implementation:**
+```java
+// GraficoService.java:253-299
+private static byte[] generarGraficosTodasCriptos(int horas) throws SQLException, IOException {
+    final int graficosAncho = 400;
+    final int graficosAlto = 300;
+    final int filas = 5;
+    final int columnas = 2;
+    final int margen = 20;
+    
+    int imagenAncho = columnas * graficosAncho + (columnas + 1) * margen;
+    int imagenAlto = filas * graficosAlto + (filas + 1) * margen + 50;
+    
+    BufferedImage imagenCompuesta = new BufferedImage(imagenAncho, imagenAlto, BufferedImage.TYPE_INT_RGB);
+    Graphics2D g2d = imagenCompuesta.createGraphics();
+    
+    // Draw background and title
+    g2d.setColor(Color.WHITE);
+    g2d.fillRect(0, 0, imagenAncho, imagenAlto);
+    
+    // Generate individual charts
+    for (int i = 0; i < criptosOrdenadas.size(); i++) {
+        String crypto = criptosOrdenadas.get(i);
+        List<Registro> registros = obtenerDatos(crypto, horas);
+        
+        XYChart chart = crearGraficoIndividual(crypto, registros, graficosAncho, graficosAlto);
+        BufferedImage graficoImg = BitmapEncoder.getBufferedImage(chart);
+        
+        int fila = i / columnas;
+        int columna = i % columnas;
+        int x = margen + columna * (graficosAncho + margen);
+        int y = 60 + margen + fila * (graficosAlto + margen);
+        
+        g2d.drawImage(graficoImg, x, y, null);
+    }
+    
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    ImageIO.write(imagenCompuesta, "PNG", out);
+    return out.toByteArray();
+}
+```
+
+#### GET /graficoCompara
+Generates comparative charts for multiple cryptocurrencies with normalized prices.
+
+**Parameters:**
+- `cryptos` (required) - Comma-separated list of cryptocurrencies
+- `inicio` (optional) - Start datetime (YYYY-MM-DDTHH:MM)
+- `fin` (optional) - End datetime (YYYY-MM-DDTHH:MM)
+
+**Example:**
+```
+http://localhost:8081/graficoCompara?cryptos=bitcoin,ethereum,solana&inicio=2025-06-27T15:00&fin=2025-06-27T18:00
+```
+
+**Response:** PNG image with overlaid line charts
+
+**Features:**
+- Price normalization for fair comparison
+- Color-coded lines for each cryptocurrency
+- Time range validation (max 24 hours)
+- Legend with crypto names
+
+**Normalization Logic:**
+```java
+// GraficoService.java:490-502
+double min = registrosSinNormalizar.stream().mapToDouble(r -> r.precio).min().orElse(0);
+double max = registrosSinNormalizar.stream().mapToDouble(r -> r.precio).max().orElse(1);
+
+double rango = (max - min == 0) ? 1 : max - min;
+
+List<Registro> registrosNormalizados = new ArrayList<>();
+for (Registro r : registrosSinNormalizar) {
+    double normalizado = (r.precio - min) / rango;
+    registrosNormalizados.add(new Registro(r.fecha, normalizado));
+}
+```
+
+#### GET /regresion
+Generates linear regression analysis for a cryptocurrency within a time range.
+
+**Parameters:**
+- `crypto` (required) - Cryptocurrency name
+- `inicio` (optional) - Start hour (0-23, default: 10)
+- `fin` (optional) - End hour (0-24, default: 12)
+
+**Example:**
+```
+http://localhost:8081/regresion?crypto=bitcoin&inicio=10&fin=14
+```
+
+**Response:** PNG image with scatter plot and regression line
+
+**Features:**
+- Displays actual data points as scatter plot
+- Overlays linear regression line
+- Shows equation (y = mx + b) and R² coefficient
+
+**Regression Calculation:**
+```java
+// GraficoService.java:718-745
+private static RegresionLineal calcularRegresionLineal(List<Double> x, List<Double> y) {
+    int n = x.size();
+    double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+    
+    for (int i = 0; i < n; i++) {
+        sumX += x.get(i);
+        sumY += y.get(i);
+        sumXY += x.get(i) * y.get(i);
+        sumX2 += x.get(i) * x.get(i);
+        sumY2 += y.get(i) * y.get(i);
+    }
+    
+    double pendiente = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    double interseccion = (sumY - pendiente * sumX) / n;
+    
+    double mediaY = sumY / n;
+    double ssTot = 0, ssRes = 0;
+    
+    for (int i = 0; i < n; i++) {
+        double yPred = pendiente * x.get(i) + interseccion;
+        ssTot += Math.pow(y.get(i) - mediaY, 2);
+        ssRes += Math.pow(y.get(i) - yPred, 2);
+    }
+    
+    double r2 = 1 - (ssRes / ssTot);
+    
+    return new RegresionLineal(pendiente, interseccion, r2);
+}
+```
+
+### Chart Styling
+
+#### Color Palette
+```java
+// GraficoService.java:347-358
+private static final Map<String, Color> CRYPTO_COLORS = Map.of(
+    "bitcoin", new Color(247, 147, 26),      // Orange
+    "ethereum", new Color(98, 126, 0),       // Green
+    "ripple", new Color(0, 162, 232),        // Blue
+    "solana", new Color(191, 191, 191),      // Silver
+    "tron", new Color(0, 255, 0),            // Bright Green
+    "dogecoin", new Color(0, 0, 0),          // Black
+    "cardano", new Color(255, 204, 0),       // Yellow
+    "hyperliquid", new Color(0, 0, 255),     // Blue
+    "bitcoin_cash", new Color(103, 58, 183), // Purple
+    "chainlink", new Color(255, 0, 0)        // Red
+);
+```
+
+#### Chart Configuration
+```java
+// GraficoService.java:169-186
+XYChart chart = new XYChartBuilder()
+    .width(800).height(450)
+    .title("Variación de precio - " + crypto.toUpperCase())
+    .xAxisTitle("Hora")
+    .yAxisTitle("USD")
+    .build();
+
+chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Area);
+chart.getStyler().setChartBackgroundColor(Color.WHITE);
+chart.getStyler().setPlotBackgroundColor(new Color(245, 245, 245));
+chart.getStyler().setPlotGridLinesColor(new Color(220, 220, 220));
+chart.getStyler().setChartTitleFont(new Font("SansSerif", Font.BOLD, 18));
+chart.getStyler().setAxisTitleFont(new Font("SansSerif", Font.PLAIN, 14));
+chart.getStyler().setLegendVisible(false);
+chart.getStyler().setMarkerSize(5);
+chart.getStyler().setDecimalPattern("#,###.00");
+chart.getStyler().setDatePattern("HH:mm");
+```
+
+### Data Retrieval
+
+```java
+// GraficoService.java:130-158
+private static List<Registro> obtenerDatos(String crypto, int horas) throws SQLException {
+    List<Registro> datos = new ArrayList<>();
+    
+    try {
+        Class.forName("com.mysql.cj.jdbc.Driver");
+    } catch (ClassNotFoundException e) {
+        throw new SQLException("Driver JDBC no encontrado");
+    }
+    
+    try (Connection conn = DriverManager.getConnection(DB_URL)) {
+        String query = String.format("""
+            SELECT fecha_registro, precio FROM %s
+            WHERE fecha_registro >= NOW() - INTERVAL ? HOUR
+            ORDER BY fecha_registro
+        """, crypto);
+        
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setInt(1, horas);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                LocalDateTime fecha = rs.getTimestamp("fecha_registro").toLocalDateTime().minusHours(6);
+                double precio = rs.getDouble("precio");
+                datos.add(new Registro(fecha, precio));
+            }
+        }
+    }
+    
+    return datos;
+}
+```
+
+### Inner Classes
+
+#### Registro
+```java
+// GraficoService.java:768-776
+private static class Registro {
+    LocalDateTime fecha;
+    double precio;
+    
+    Registro(LocalDateTime fecha, double precio) {
+        this.fecha = fecha;
+        this.precio = precio;
+    }
+}
+```
+
+#### RegresionLineal
+```java
+// GraficoService.java:778-788
+private static class RegresionLineal {
+    double pendiente;
+    double interseccion;
+    double coeficienteDeterminacion;
+    
+    RegresionLineal(double pendiente, double interseccion, double r2) {
+        this.pendiente = pendiente;
+        this.interseccion = interseccion;
+        this.coeficienteDeterminacion = r2;
+    }
+}
+```
+
+### Thread Pool Configuration
+
+```java
+// GraficoService.java:70-71
+server.setExecutor(Executors.newFixedThreadPool(4));
+server.start();
+```
+
+---
+
+## RecolectorPrecios (Port 8082)
+
+### Purpose
+Automated service that continuously fetches cryptocurrency prices from the CoinGecko API and persists them to the MySQL database.
+
+### Key Components
+
+#### Main Class Structure
+```java
+public class RecolectorPrecios {
+    private static final String STATUS_ENDPOINT = "/status";
+    private static final String URL_API = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin-cash,chainlink&vs_currencies=usd";
+    private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db";
+    
+    private final int port;
+    private HttpServer server;
+}
+```
+
+### Main Method
+
+```java
+// RecolectorPrecios.java:37-48
+public static void main(String[] args) {
+    int serverPort = 8082;
+    
+    WebServer webServer = new WebServer(serverPort);
+    webServer.startServer();
+    
+    System.out.println("Servidor escuchando en el puerto " + serverPort);
+    
+    Timer temporizador = new Timer();
+    temporizador.schedule(new TareaObtenerPrecios(), 0, 60_000); // Every 60 seconds
+}
+```
+
+### Scheduled Task
+
+#### TareaObtenerPrecios (Inner Class)
+
+This `TimerTask` runs every 60 seconds to fetch and store prices:
+
+```java
+// RecolectorPrecios.java:92-109
+static class TareaObtenerPrecios extends TimerTask {
+    private final HttpClient cliente = HttpClient.newHttpClient();
+    
+    @Override
+    public void run() {
+        HttpRequest solicitud = HttpRequest.newBuilder()
+            .uri(URI.create(URL_API))
+            .GET()
+            .build();
+        
+        cliente.sendAsync(solicitud, HttpResponse.BodyHandlers.ofString())
+            .thenApply(HttpResponse::body)
+            .thenAccept(this::transformarYGuardarPrecios)
+            .exceptionally(error -> {
+                System.err.println("Error al obtener precios: " + error.getMessage());
+                return null;
+            });
+    }
+}
+```
+
+### Data Processing
+
+#### JSON Parsing and Database Insertion
+
+```java
+// RecolectorPrecios.java:111-144
+private void transformarYGuardarPrecios(String jsonOriginal) {
+    try {
+        String[] criptos = {"bitcoin", "ethereum", "ripple", "solana", "tron", 
+                           "dogecoin", "cardano", "hyperliquid", "bitcoin_cash", "chainlink"};
+        
+        // Remove outer braces
+        jsonOriginal = jsonOriginal.substring(1, jsonOriginal.length() - 1);
+        
+        // Split by commas followed by quotes
+        String[] monedas = jsonOriginal.split(",(?=\\\"[a-z])");
+        
+        try (Connection conexion = DriverManager.getConnection(DB_URL)) {
+            for (int i = 0; i < monedas.length; i++) {
+                String moneda = monedas[i].trim();
+                String precioStr = moneda.split(":")[2].replace("}", "").trim();
+                double precio = Double.parseDouble(precioStr);
+                
+                // Insert into database
+                String tabla = criptos[i];
+                String sql = "INSERT INTO " + tabla + " (precio) VALUES (?)";
+                
+                try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
+                    pstmt.setDouble(1, precio);
+                    pstmt.executeUpdate();
+                    System.out.println(tabla + ": precio=" + precio);
+                }
+            }
+        }
+    } catch (Exception e) {
+        System.err.println("Error al procesar datos: " + e.getMessage());
+    }
+}
+```
+
+### API Response Example
+
+The service expects responses in this format:
+```json
+{
+  "bitcoin":{"usd":43250.50},
+  "ethereum":{"usd":2280.75},
+  "ripple":{"usd":0.52},
+  "solana":{"usd":98.45},
+  "tron":{"usd":0.11},
+  "dogecoin":{"usd":0.08},
+  "cardano":{"usd":0.48},
+  "hyperliquid":{"usd":12.34},
+  "bitcoin-cash":{"usd":245.67},
+  "chainlink":{"usd":15.89}
+}
+```
+
+### Database Operations
+
+**Insert Pattern:**
+```sql
+INSERT INTO bitcoin (precio) VALUES (43250.50);
+-- fecha_registro is auto-populated by TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+```
+
+### Endpoint
+
+#### GET /status
+Health check endpoint.
+
+**Response:**
+```
+El servidor está vivo
+```
+
+---
+
+## Inter-Service Communication
+
+### Communication Pattern
+
+The services use a **shared database** pattern rather than direct HTTP communication:
+
+```
+RecolectorPrecios ──▶ [MySQL] ◀── WebServer
+                         ▲
+                         │
+                         └──── GraficoService
+```
+
+**Benefits:**
+- Simple architecture
+- No service-to-service dependencies
+- Natural data persistence
+- Easy to add new consumers
+
+**Drawbacks:**
+- Database becomes a bottleneck
+- Tight coupling through schema
+- No real-time updates (polling required)
+
+### JDBC Configuration
+
+All services use the same connection string:
+```java
+private static final String DB_URL = 
+    "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+### Connection Management
+
+**Pattern:** Connection-per-request with try-with-resources
+
+```java
+try (Connection conexion = DriverManager.getConnection(DB_URL)) {
+    // Database operations
+} // Automatic connection close
+```
+
+---
+
+## Compilation and Execution
+
+### Local Development
+
+#### WebServer
+```bash
+javac -cp ".;lib/*" WebServer.java
+java -cp ".;lib/*" WebServer
+```
+
+#### GraficoService
+```bash
+javac -cp ".;lib/*" java/GraficoService.java
+java -cp ".;lib/*" java.GraficoService
+```
+
+#### RecolectorPrecios
+```bash
+javac -cp ".;lib/*" RecolectorPrecios.java
+java -cp ".;lib/*" RecolectorPrecios
+```
+
+### Required Libraries
+
+All services require the following JARs in the `lib/` directory:
+- `mysql-connector-java-*.jar` - MySQL JDBC driver
+- `xchart-*.jar` - Chart generation (GraficoService only)
+
+---
+
+## Performance Characteristics
+
+### WebServer
+- **Thread Pool:** 8 threads
+- **Response Time:** < 100ms (database query)
+- **Concurrency:** Can handle 8 simultaneous requests
+- **Bottleneck:** Database query performance
+
+### GraficoService
+- **Thread Pool:** 4 threads
+- **Response Time:** 500ms - 2s (depending on chart complexity)
+- **Concurrency:** 4 simultaneous chart generations
+- **Bottleneck:** Chart rendering (CPU-intensive)
+- **Memory:** High memory usage for image generation
+
+### RecolectorPrecios
+- **Execution Interval:** 60 seconds
+- **API Call:** Asynchronous with HttpClient
+- **Database Writes:** 10 INSERT operations per cycle
+- **Bottleneck:** Network latency to CoinGecko API
+
+---
+
+## Error Handling
+
+### Database Errors
+```java
+catch (SQLException e) {
+    e.printStackTrace();
+    String error = "{\"error\": \"Error al consultar la base de datos\"}";
+    sendResponse(error.getBytes(), exchange, "application/json");
+}
+```
+
+### API Errors
+```java
+.exceptionally(error -> {
+    System.err.println("Error al obtener precios: " + error.getMessage());
+    return null;
+});
+```
+
+### HTTP Errors
+```java
+if (crypto.isEmpty() || horas <= 0 || horas > 24) {
+    String error = "Parámetros inválidos. Usa ?crypto=bitcoin&horas=3";
+    exchange.sendResponseHeaders(400, error.length());
+    // ...
+}
+```
+
+---
+
+## Monitoring and Observability
+
+### Health Checks
+All services expose `/status` endpoints for monitoring:
+```bash
+curl http://localhost:8080/status  # WebServer
+curl http://localhost:8081/status  # GraficoService
+curl http://localhost:8082/status  # RecolectorPrecios
+```
+
+### Logging
+Console-based logging with:
+- Stack traces for exceptions
+- Price insertion logs in RecolectorPrecios
+- Request handling info
+
+### Potential Improvements
+- Add structured logging (SLF4J + Logback)
+- Implement metrics collection (Prometheus)
+- Add distributed tracing (Jaeger)
+- Create monitoring dashboard (Grafana)

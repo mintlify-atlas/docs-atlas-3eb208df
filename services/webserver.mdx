@@ -1,0 +1,258 @@
+---
+title: 'WebServer Service'
+description: 'REST API service that provides cryptocurrency price data from MySQL database'
+---
+
+## Overview
+
+The **WebServer** service is a Java-based HTTP server that exposes two main endpoints for retrieving cryptocurrency data. It runs on port 8080 and connects to a MySQL database to fetch the latest cryptocurrency prices.
+
+### Service Configuration
+
+```java
+private static final String STATUS_ENDPOINT = "/status";
+private static final String PRECIOS_ENDPOINT = "/precios";
+private static final String DB_URL = "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+The service uses Java's built-in `HttpServer` with a thread pool of 8 threads:
+
+```java
+this.server = HttpServer.create(new InetSocketAddress(port), 0);
+server.setExecutor(Executors.newFixedThreadPool(8));
+```
+
+## Endpoints
+
+### GET /status
+
+Health check endpoint that verifies the service is running.
+
+**Response:**
+```
+El servidor está vivo
+```
+
+**Content-Type:** `text/plain`
+
+**Implementation:**
+```java
+private void handleStatusCheckRequest(HttpExchange exchange) throws IOException {
+    if (!exchange.getRequestMethod().equalsIgnoreCase("get")) {
+        exchange.close();
+        return;
+    }
+    String responseMessage = "El servidor está vivo\n";
+    sendResponse(responseMessage.getBytes(), exchange, "text/plain");
+}
+```
+
+### GET /precios
+
+Retrieves the latest prices for all 10 tracked cryptocurrencies from the database.
+
+**Response Format:**
+```json
+[
+  {
+    "name": "Bitcoin",
+    "symbol": "BTC",
+    "price": 45678.50
+  },
+  {
+    "name": "Ethereum",
+    "symbol": "ETH",
+    "price": 2345.67
+  }
+]
+```
+
+**Content-Type:** `application/json`
+
+**Tracked Cryptocurrencies:**
+
+| Database Table | Name | Symbol |
+|----------------|------|--------|
+| bitcoin | Bitcoin | BTC |
+| ethereum | Ethereum | ETH |
+| ripple | XRP | XRP |
+| solana | Solana | SOL |
+| tron | TRON | TRX |
+| dogecoin | Dogecoin | DOGE |
+| cardano | Cardano | ADA |
+| hyperliquid | Hyperliquid | HYPE |
+| bitcoin_cash | Bitcoin Cash | BCH |
+| chainlink | Chainlink | LINK |
+
+## Database Query Logic
+
+The service queries each cryptocurrency table to get the most recent price:
+
+```java
+private List<CryptoPrice> obtenerUltimosPreciosDeBD() throws SQLException {
+    List<CryptoPrice> precios = new ArrayList<>();
+    
+    try {
+        Class.forName("com.mysql.cj.jdbc.Driver");
+    } catch (ClassNotFoundException e) {
+        e.printStackTrace();
+        throw new SQLException("Driver JDBC no encontrado");
+    }
+    
+    Map<String, String[]> criptos = Map.of(
+        "bitcoin", new String[] { "Bitcoin", "BTC" },
+        "ethereum", new String[] { "Ethereum", "ETH" },
+        // ... other cryptocurrencies
+    );
+    
+    try (Connection conexion = DriverManager.getConnection(DB_URL)) {
+        for (Map.Entry<String, String[]> entry : criptos.entrySet()) {
+            String tabla = entry.getKey();
+            String nombre = entry.getValue()[0];
+            String simbolo = entry.getValue()[1];
+            
+            String sql = "SELECT precio FROM " + tabla + " ORDER BY fecha_registro DESC LIMIT 1";
+            
+            try (PreparedStatement pstmt = conexion.prepareStatement(sql);
+                    ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    double precio = rs.getDouble("precio");
+                    precios.add(new CryptoPrice(nombre, simbolo, precio));
+                }
+            }
+        }
+    }
+    
+    return precios;
+}
+```
+
+## CORS Configuration
+
+The service supports CORS to allow frontend applications to access the API:
+
+```java
+private void sendResponse(byte[] responseBytes, HttpExchange exchange, String contentType) throws IOException {
+    Headers headers = exchange.getResponseHeaders();
+    headers.add("Content-Type", contentType);
+    headers.add("Access-Control-Allow-Origin", "*");
+    headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    headers.add("Access-Control-Allow-Headers", "*");
+    
+    exchange.sendResponseHeaders(200, responseBytes.length);
+    try (OutputStream outputStream = exchange.getResponseBody()) {
+        outputStream.write(responseBytes);
+    }
+    exchange.close();
+}
+```
+
+The `/precios` endpoint also handles preflight OPTIONS requests:
+
+```java
+if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+    Headers headers = exchange.getResponseHeaders();
+    headers.add("Access-Control-Allow-Origin", "*");
+    headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    headers.add("Access-Control-Allow-Headers", "*");
+    exchange.sendResponseHeaders(204, -1); // No Content
+    exchange.close();
+    return;
+}
+```
+
+## CryptoPrice Internal Class
+
+The service uses an internal data class to represent cryptocurrency prices:
+
+```java
+private static class CryptoPrice {
+    final String name;
+    final String symbol;
+    final double price;
+    
+    public CryptoPrice(String name, String symbol, double price) {
+        this.name = name;
+        this.symbol = symbol;
+        this.price = price;
+    }
+}
+```
+
+## JSON Generation
+
+Prices are manually serialized to JSON without external libraries:
+
+```java
+private String generarJsonManual(List<CryptoPrice> precios) {
+    StringBuilder json = new StringBuilder("[");
+    for (int i = 0; i < precios.size(); i++) {
+        CryptoPrice precio = precios.get(i);
+        json.append(String.format(
+                "{\"name\":\"%s\",\"symbol\":\"%s\",\"price\":%.2f}",
+                escapeJson(precio.name),
+                escapeJson(precio.symbol),
+                precio.price));
+        if (i < precios.size() - 1) {
+            json.append(",");
+        }
+    }
+    json.append("]");
+    return json.toString();
+}
+
+private String escapeJson(String input) {
+    return input.replace("\"", "\\\"")
+            .replace("\\", "\\\\")
+            .replace("/", "\\/")
+            .replace("\b", "\\b")
+            .replace("\f", "\\f")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
+}
+```
+
+## Starting the Service
+
+The main method accepts an optional port parameter:
+
+```java
+public static void main(String[] args) {
+    int serverPort = 8080;
+    if (args.length == 1) {
+        serverPort = Integer.parseInt(args[0]);
+    }
+    
+    WebServer webServer = new WebServer(serverPort);
+    webServer.startServer();
+    
+    System.out.println("Servidor escuchando en el puerto " + serverPort);
+}
+```
+
+### Running Locally
+
+```bash
+# Compile
+javac -cp ".;lib/*" WebServer.java
+
+# Run
+java -cp ".;lib/*" WebServer
+```
+
+## Error Handling
+
+The service returns JSON error messages when database queries fail:
+
+```java
+try {
+    List<CryptoPrice> precios = obtenerUltimosPreciosDeBD();
+    String jsonResponse = generarJsonManual(precios);
+    sendResponse(jsonResponse.getBytes(), exchange, "application/json");
+} catch (SQLException e) {
+    e.printStackTrace();
+    String error = "{\"error\": \"Error al consultar la base de datos\"}";
+    sendResponse(error.getBytes(), exchange, "application/json");
+}
+```

@@ -1,0 +1,162 @@
+---
+title: Introduction
+description: Overview of CryptoTracker Web - A distributed cryptocurrency tracking application
+---
+
+# Introduction to CryptoTracker Web
+
+CryptoTracker Web is a distributed web application that enables real-time cryptocurrency price tracking, historical chart visualization, asset comparison, and trend analysis using linear regression.
+
+## What is CryptoTracker Web?
+
+CryptoTracker Web is a microservices-based application built with **Java 17** and a lightweight **HTML + JavaScript** frontend. The system collects and displays real-time price data for 10 major cryptocurrencies, providing interactive charts and analytical tools for users to monitor and analyze crypto market trends.
+
+## Who is it for?
+
+This application is designed for:
+
+- **Students and educators** learning distributed systems architecture
+- **Cryptocurrency enthusiasts** tracking multiple digital assets
+- **Developers** looking for examples of microservices implementation
+- **Analysts** performing basic technical analysis on crypto prices
+
+## Tracked Cryptocurrencies
+
+CryptoTracker Web monitors the following 10 cryptocurrencies:
+
+1. **Bitcoin (BTC)** - The original cryptocurrency
+2. **Ethereum (ETH)** - Smart contract platform
+3. **XRP (XRP)** - Ripple network token
+4. **Solana (SOL)** - High-performance blockchain
+5. **TRON (TRX)** - Decentralized content platform
+6. **Dogecoin (DOGE)** - Popular meme cryptocurrency
+7. **Cardano (ADA)** - Proof-of-stake blockchain
+8. **Hyperliquid (HYPE)** - Decentralized exchange token
+9. **Bitcoin Cash (BCH)** - Bitcoin fork
+10. **Chainlink (LINK)** - Decentralized oracle network
+
+Price data is sourced from the [CoinGecko API](https://www.coingecko.com/) and updated every 60 seconds.
+
+## Microservices Architecture
+
+CryptoTracker Web is built using a distributed microservices architecture with three independent backend services:
+
+### 1. RecolectorPrecios (Price Collector)
+
+**File:** `RecolectorPrecios.java`
+
+**Purpose:** Scheduled service that collects and stores cryptocurrency prices
+
+**Key Features:**
+- Fetches prices from CoinGecko API every 60 seconds
+- Stores historical data in MySQL database (one table per cryptocurrency)
+- Exposes `/status` endpoint for health monitoring
+- Runs on port **8082**
+
+**Database Tables:**
+```java
+"bitcoin", "ethereum", "ripple", "solana", "tron", 
+"dogecoin", "cardano", "hyperliquid", "bitcoin_cash", "chainlink"
+```
+
+### 2. WebServer (REST API)
+
+**File:** `WebServer.java`
+
+**Purpose:** Provides REST endpoints for retrieving current cryptocurrency prices
+
+**Key Features:**
+- `/precios` - Returns current prices for all 10 cryptocurrencies in JSON format
+- `/status` - Health check endpoint
+- CORS-enabled for cross-origin requests
+- Runs on port **8080**
+
+**Example Response:**
+```json
+[
+  {"name":"Bitcoin","symbol":"BTC","price":45000.00},
+  {"name":"Ethereum","symbol":"ETH","price":3200.00}
+]
+```
+
+### 3. GraficoService (Chart Generator)
+
+**File:** `GraficoService.java`
+
+**Purpose:** Generates PNG charts for price visualization and analysis
+
+**Key Features:**
+- `/grafico` - Individual cryptocurrency price variation charts
+- `/graficos-todas` - Grid view of all 10 cryptocurrencies
+- `/graficoCompara` - Comparison charts with normalized prices
+- `/regresion` - Linear regression analysis with R² coefficient
+- Uses XChart library for chart generation
+- Runs on port **8081**
+
+### 4. Frontend
+
+**File:** `index.html`
+
+**Purpose:** Interactive web interface for accessing all services
+
+**Key Features:**
+- Real-time price dashboard with auto-refresh every 60 seconds
+- Five interactive sections: Prices, Individual Charts, All Charts, Compare, Regression
+- Responsive design with modern CSS styling
+- Cryptocurrency icon integration
+- Error handling and loading states
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Prices" icon="dollar-sign">
+    View current prices for all 10 tracked cryptocurrencies, updated every minute from CoinGecko API.
+  </Card>
+  
+  <Card title="Historical Charts" icon="chart-line">
+    Generate price variation charts for any cryptocurrency over the last 1-24 hours using the `/grafico` endpoint.
+  </Card>
+  
+  <Card title="Comparison Tool" icon="balance-scale">
+    Compare multiple cryptocurrencies simultaneously with normalized pricing on the `/graficoCompara` endpoint.
+  </Card>
+  
+  <Card title="Linear Regression" icon="calculator">
+    Perform linear regression analysis with trend lines and R² coefficients via the `/regresion` endpoint.
+  </Card>
+  
+  <Card title="Microservices Design" icon="server">
+    Each service runs independently and can be deployed, scaled, and maintained separately.
+  </Card>
+  
+  <Card title="MySQL Storage" icon="database">
+    Historical price data stored in MySQL with separate tables for each cryptocurrency.
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|------------|
+| Backend Language | Java 17 |
+| HTTP Server | `com.sun.net.httpserver.HttpServer` |
+| Chart Library | XChart 3.8.8 |
+| Database | MySQL |
+| JDBC Driver | mysql-connector-j 9.3.0 |
+| Frontend | HTML5 + JavaScript (Vanilla) |
+| Data Source | CoinGecko Public API |
+| Deployment | Google Cloud Compute Engine |
+
+## Architecture Benefits
+
+**Modularity**: Each microservice has a single responsibility and can be modified independently.
+
+**Scalability**: Services can be deployed on separate virtual machines and scaled based on demand.
+
+**Maintainability**: Clear separation of concerns makes debugging and updates straightforward.
+
+**Fault Tolerance**: If one service fails, others continue to operate normally.
+
+## Next Steps
+
+Ready to get started? Head over to the [Quickstart](/quickstart) guide to set up CryptoTracker Web locally.

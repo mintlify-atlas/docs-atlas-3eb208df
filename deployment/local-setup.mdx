@@ -1,0 +1,327 @@
+---
+title: "Local Development Setup"
+description: "Complete guide to setting up CryptoTracker Web for local development"
+---
+
+## Overview
+
+This guide walks you through setting up the complete CryptoTracker Web application on your local machine. The application consists of three Java microservices and an HTML/JavaScript frontend.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Java 17 or higher** - Required for running the Java microservices
+- **MySQL Database** - For storing cryptocurrency price history
+- **XAMPP** (or standalone MySQL) - For local database management
+- **Git** - For cloning the repository
+
+<Tip>
+  If using XAMPP, MySQL typically runs on port 3308. If using standalone MySQL, the default port is 3306.
+</Tip>
+
+## Database Setup
+
+<Steps>
+  <Step title="Start MySQL Server">
+    Launch XAMPP Control Panel and start the MySQL service. Alternatively, start your standalone MySQL server.
+    
+    Verify MySQL is running on the correct port (default: 3308 for XAMPP, 3306 for standalone).
+  </Step>
+
+  <Step title="Create Database">
+    Create the database using your MySQL client:
+    
+    ```sql
+    CREATE DATABASE criptomonedas_db;
+    ```
+  </Step>
+
+  <Step title="Create Tables">
+    Create tables for each cryptocurrency. Each cryptocurrency has its own table with the same schema:
+    
+    ```sql
+    CREATE TABLE bitcoin (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE ethereum (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE ripple (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE solana (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE tron (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE dogecoin (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE cardano (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE hyperliquid (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE bitcoin_cash (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE chainlink (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      precio DECIMAL(18, 8) NOT NULL,
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    ```
+  </Step>
+
+  <Step title="Configure Database User">
+    Ensure you have a database user with appropriate permissions:
+    
+    ```sql
+    -- If using root with no password (XAMPP default):
+    -- username: root
+    -- password: (empty)
+    
+    -- Grant permissions if needed:
+    GRANT ALL PRIVILEGES ON criptomonedas_db.* TO 'root'@'localhost';
+    FLUSH PRIVILEGES;
+    ```
+  </Step>
+</Steps>
+
+## Configure Services for Local Development
+
+### Update Database Connection Strings
+
+Each service needs to be configured to use localhost database connection. Update the following in each Java file:
+
+**WebServer.java** (source/java/WebServer.java:25)
+```java
+// Uncomment for local development:
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false&serverTimezone=UTC";
+  
+// Comment out the GCP URL:
+// private static final String DB_URL = 
+//   "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+**GraficoService.java** (source/java/GraficoService.java:37-39)
+```java
+// Uncomment for local development:
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false";
+  
+// Comment out the GCP URL:
+// private static final String DB_URL = 
+//   "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+**RecolectorPrecios.java** (source/java/RecolectorPrecios.java:30-31)
+```java
+// Uncomment for local development:
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false&allowPublicKeyRetrieval=true";
+  
+// Comment out the GCP URL:
+// private static final String DB_URL = 
+//   "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+<Warning>
+  Adjust the port number (3308 vs 3306) based on your MySQL installation. XAMPP typically uses 3308, while standalone MySQL uses 3306.
+</Warning>
+
+### Update Frontend API URLs
+
+Update the frontend to point to localhost services in **index.html** (source/frontend/index.html:638-639):
+
+```javascript
+// Change from:
+const API_BASE_URL = "http://34.36.237.99";
+const CHART_API_BASE_URL = "http://34.36.237.99";
+
+// To:
+const API_BASE_URL = "http://localhost:8080";
+const CHART_API_BASE_URL = "http://localhost:8081";
+```
+
+## Compile and Run Services
+
+<Steps>
+  <Step title="Compile WebServer">
+    Navigate to the `java` directory and compile WebServer:
+    
+    ```bash
+    cd source/java
+    javac -cp ".;lib/*" WebServer.java
+    ```
+    
+    <Note>
+      On Linux/Mac, use `:` instead of `;` for the classpath: `javac -cp ".:lib/*" WebServer.java`
+    </Note>
+  </Step>
+
+  <Step title="Run WebServer">
+    Start the WebServer service on port 8080:
+    
+    ```bash
+    java -cp ".;lib/*" WebServer
+    ```
+    
+    You should see:
+    ```
+    Servidor escuchando en el puerto 8080
+    ```
+    
+    Verify it's running:
+    ```bash
+    curl http://localhost:8080/status
+    # Should return: El servidor está vivo
+    ```
+  </Step>
+
+  <Step title="Compile and Run GraficoService">
+    In a new terminal window:
+    
+    ```bash
+    cd source/java
+    javac -cp ".;lib/*" GraficoService.java
+    java -cp ".;lib/*" GraficoService
+    ```
+    
+    You should see:
+    ```
+    GraficoService escuchando en http://localhost:8081/grafico
+    ```
+    
+    The service runs on port 8081 and provides these endpoints:
+    - `/grafico` - Individual cryptocurrency chart
+    - `/graficoCompara` - Comparison chart
+    - `/graficos-todas` - All cryptocurrencies chart
+    - `/regresion` - Linear regression analysis
+  </Step>
+
+  <Step title="Compile and Run RecolectorPrecios">
+    In a new terminal window:
+    
+    ```bash
+    cd source/java
+    javac -cp ".;lib/*" RecolectorPrecios.java
+    java -cp ".;lib/*" RecolectorPrecios
+    ```
+    
+    You should see:
+    ```
+    Servidor escuchando en el puerto 8082
+    ```
+    
+    This service collects cryptocurrency prices from CoinGecko API every 60 seconds and stores them in the database.
+  </Step>
+
+  <Step title="Open Frontend">
+    Open `source/frontend/index.html` in your web browser:
+    
+    ```bash
+    # On Windows
+    start source/frontend/index.html
+    
+    # On Mac
+    open source/frontend/index.html
+    
+    # On Linux
+    xdg-open source/frontend/index.html
+    ```
+    
+    Or simply drag the file into your browser.
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Once all services are running:
+
+1. **Check WebServer**: Visit http://localhost:8080/status
+2. **Check GraficoService**: Visit http://localhost:8081/status
+3. **Check RecolectorPrecios**: Visit http://localhost:8082/status
+4. **Check Database**: Verify that prices are being inserted into tables
+   ```sql
+   SELECT * FROM bitcoin ORDER BY fecha_registro DESC LIMIT 5;
+   ```
+5. **Test Frontend**: Open index.html and verify that prices are displayed
+
+## Service Ports Summary
+
+| Service | Port | Purpose |
+|---------|------|--------|
+| **WebServer** | 8080 | REST API for current cryptocurrency prices |
+| **GraficoService** | 8081 | Chart generation service (PNG images) |
+| **RecolectorPrecios** | 8082 | Price collection service (background task) |
+| **MySQL** | 3308/3306 | Database server |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused errors">
+    - Verify MySQL is running
+    - Check that the port numbers match your MySQL installation
+    - Ensure firewall is not blocking the ports
+  </Accordion>
+
+  <Accordion title="JDBC Driver not found">
+    Ensure the MySQL JDBC driver is in the `lib` directory:
+    ```bash
+    ls source/java/lib/
+    # Should show: mysql-connector-j-*.jar
+    ```
+  </Accordion>
+
+  <Accordion title="CORS errors in frontend">
+    - Make sure all three backend services are running
+    - Verify the API URLs in index.html point to localhost
+    - Check browser console for specific error messages
+  </Accordion>
+
+  <Accordion title="No data in charts">
+    - Wait for RecolectorPrecios to collect at least a few data points (1-2 minutes)
+    - Verify data is being inserted into database tables
+    - Check that the time range requested has available data
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that your local environment is set up:
+
+- Learn about [configuration options](/deployment/configuration)
+- Explore [GCP deployment](/deployment/google-cloud)
+- Review the [API documentation](/api-reference/overview)

@@ -1,0 +1,251 @@
+---
+title: GET /graficoCompara
+description: Compare multiple cryptocurrencies with normalized prices
+---
+
+Generate a comparison chart showing multiple cryptocurrencies on the same graph with normalized price scales.
+
+## Endpoint
+
+```
+GET http://your-server:8081/graficoCompara
+```
+
+## Parameters
+
+<ParamField query="cryptos" type="string" required>
+  Comma-separated list of cryptocurrency table names (lowercase). 
+  
+  Valid values: `bitcoin`, `ethereum`, `ripple`, `solana`, `tron`, `dogecoin`, `cardano`, `hyperliquid`, `bitcoin_cash`, `chainlink`
+  
+  Example: `bitcoin,ethereum,solana`
+</ParamField>
+
+<ParamField query="inicio" type="string">
+  Start datetime in ISO 8601 format: `YYYY-MM-DDTHH:MM`
+  
+  If omitted, defaults to 3 hours before `fin`.
+  
+  Must be within the last 24 hours.
+  
+  Example: `2025-06-27T15:00`
+</ParamField>
+
+<ParamField query="fin" type="string">
+  End datetime in ISO 8601 format: `YYYY-MM-DDTHH:MM`
+  
+  If omitted, defaults to current time.
+  
+  Example: `2025-06-27T18:00`
+</ParamField>
+
+## Response
+
+Returns a PNG image (`Content-Type: image/png`) showing:
+- **Chart title**: "Comparación de precios de criptomonedas"
+- **X-axis**: Time in HH:mm format
+- **Y-axis**: Normalized scale (0-1, no tick labels)
+- **Chart dimensions**: 800x480 pixels
+- **Legend**: Outside right, vertical layout with cryptocurrency names
+
+## Price Normalization
+
+Prices are normalized using min-max normalization for each cryptocurrency:
+
+```
+normalized_price = (price - min_price) / (max_price - min_price)
+```
+
+This allows cryptocurrencies with vastly different price ranges to be compared on the same scale:
+- Value of 0 = minimum price in the time range
+- Value of 1 = maximum price in the time range
+
+## Chart Features
+
+- **Style**: Line chart (no area fill)
+- **Colors**: Each cryptocurrency has a distinct color
+- **Line width**: 2 pixels
+- **Markers**: None (smooth lines)
+- **Background**: White chart, light gray plot area
+- **Grid**: Light gray grid lines
+- **Time format**: HH:mm (24-hour format)
+
+## Cryptocurrency Colors
+
+| Cryptocurrency | Color | Hex Code |
+|---------------|-------|----------|
+| Bitcoin | Orange | #F79316 |
+| Ethereum | Olive Green | #627E00 |
+| XRP | Sky Blue | #00A2E8 |
+| Solana | Silver Gray | #BFBFBF |
+| TRON | Green | #00FF00 |
+| Dogecoin | Black | #000000 |
+| Cardano | Yellow | #FFCC00 |
+| Hyperliquid | Blue | #0000FF |
+| Bitcoin Cash | Purple | #673AB7 |
+| Chainlink | Red | #FF0000 |
+
+## Status Codes
+
+- `200` - Success (returns PNG image)
+- `204` - No Content (no data available for the specified parameters)
+- `400` - Bad Request (invalid parameters or date format)
+- `405` - Method Not Allowed (non-GET request)
+- `500` - Internal Server Error (database error)
+
+## Error Messages
+
+### Invalid Date Format
+```
+Formato de fecha inválido. Use YYYY-MM-DDTHH:MM
+```
+
+### Date Out of Range
+```
+La fecha de inicio no puede ser anterior a {max_start_time}
+```
+
+### Invalid Date Range
+```
+La fecha de inicio debe ser anterior a la fecha de fin
+```
+
+### Missing Cryptocurrencies
+```
+Debe especificar al menos una criptomoneda. Ejemplo: ?cryptos=bitcoin
+```
+
+## Example Requests
+
+### Compare Bitcoin and Ethereum (last 3 hours)
+
+```bash
+curl "http://your-server:8081/graficoCompara?cryptos=bitcoin,ethereum" \
+  -o btc_eth_comparison.png
+```
+
+### Compare multiple cryptocurrencies with specific time range
+
+```bash
+curl "http://your-server:8081/graficoCompara?cryptos=ethereum,ripple,solana&inicio=2025-06-27T15:00&fin=2025-06-27T18:00" \
+  -o multi_crypto_comparison.png
+```
+
+### Compare all cryptocurrencies
+
+```bash
+curl "http://your-server:8081/graficoCompara?cryptos=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin_cash,chainlink&inicio=2025-06-27T12:00&fin=2025-06-27T18:00" \
+  -o all_cryptos_comparison.png
+```
+
+### JavaScript with dynamic dates
+
+```javascript
+const cryptos = ['bitcoin', 'ethereum', 'solana'].join(',');
+const fin = new Date();
+const inicio = new Date(fin.getTime() - 6 * 60 * 60 * 1000); // 6 hours ago
+
+const formatDate = (date) => {
+  return date.toISOString().slice(0, 16).replace('T', 'T');
+};
+
+const url = `http://your-server:8081/graficoCompara?cryptos=${cryptos}&inicio=${formatDate(inicio)}&fin=${formatDate(fin)}`;
+
+fetch(url)
+  .then(response => response.blob())
+  .then(blob => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    document.body.appendChild(img);
+  });
+```
+
+### Python with datetime
+
+```python
+import requests
+from datetime import datetime, timedelta
+
+# Compare Bitcoin, Ethereum, and Solana for the last 6 hours
+cryptos = 'bitcoin,ethereum,solana'
+fin = datetime.now()
+inicio = fin - timedelta(hours=6)
+
+params = {
+    'cryptos': cryptos,
+    'inicio': inicio.strftime('%Y-%m-%dT%H:%M'),
+    'fin': fin.strftime('%Y-%m-%dT%H:%M')
+}
+
+response = requests.get('http://your-server:8081/graficoCompara', params=params)
+
+if response.status_code == 200:
+    with open('comparison.png', 'wb') as f:
+        f.write(response.content)
+    print('Comparison chart saved')
+else:
+    print(f'Error: {response.status_code}')
+    print(response.text)
+```
+
+## Implementation Details
+
+### Database Query
+
+For each cryptocurrency, the endpoint executes:
+
+```sql
+SELECT fecha_registro, precio FROM {crypto_table}
+WHERE fecha_registro BETWEEN STR_TO_DATE(?, '%Y-%m-%d %H:%i:%s')
+AND STR_TO_DATE(?, '%Y-%m-%d %H:%i:%s')
+ORDER BY fecha_registro
+```
+
+### Time Constraints
+
+- Maximum query range: 24 hours
+- Start time must be within the last 24 hours from current time
+- If no dates are provided, defaults to the last 3 hours
+
+### Normalization Process
+
+1. Fetch all data points for each cryptocurrency in the specified range
+2. Calculate min and max price for each cryptocurrency independently
+3. Apply min-max normalization: `(price - min) / (max - min)`
+4. Plot all normalized series on the same chart
+
+### Time Zone Adjustment
+
+All timestamps are adjusted by -6 hours from the database timezone.
+
+## Use Cases
+
+### Compare Market Trends
+See which cryptocurrencies are moving together or diverging:
+```
+?cryptos=bitcoin,ethereum&inicio=2025-06-27T00:00&fin=2025-06-27T23:59
+```
+
+### Analyze Correlation
+Identify correlated price movements across multiple assets:
+```
+?cryptos=bitcoin,bitcoin_cash,ethereum
+```
+
+### Track Market Sentiment
+Compare major caps vs. altcoins:
+```
+?cryptos=bitcoin,ethereum,dogecoin,cardano
+```
+
+## CORS Support
+
+The endpoint includes full CORS support:
+
+**Response Headers:**
+```
+Content-Type: image/png
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+```

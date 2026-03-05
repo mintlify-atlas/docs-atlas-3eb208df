@@ -1,0 +1,402 @@
+---
+title: "Configuration"
+description: "Configure database connections, API endpoints, and service settings"
+---
+
+## Overview
+
+CryptoTracker Web requires configuration changes depending on whether you're running locally or in production on Google Cloud Platform. This guide covers all configuration options for each service.
+
+## Database Configuration
+
+### Connection Strings
+
+Each backend service requires a MySQL database connection string. The format is:
+
+```
+jdbc:mysql://HOST:PORT/DATABASE?user=USERNAME&password=PASSWORD&options
+```
+
+### Local Development
+
+For local development with XAMPP or standalone MySQL:
+
+**WebServer.java** (line 25):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false&serverTimezone=UTC";
+```
+
+**GraficoService.java** (line 38):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false";
+```
+
+**RecolectorPrecios.java** (line 30):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://localhost:3308/criptomonedas_db?user=root&password=&useSSL=false&allowPublicKeyRetrieval=true";
+```
+
+<Warning>
+  **Port Configuration**: XAMPP typically uses port **3308** for MySQL. Standalone MySQL installations use port **3306**. Adjust accordingly.
+</Warning>
+
+### Google Cloud Production
+
+For GCP deployment with the database VM at internal IP 10.23.176.2:
+
+**WebServer.java** (line 26):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+**GraficoService.java** (line 39):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+**RecolectorPrecios.java** (line 31):
+```java
+private static final String DB_URL = 
+  "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=root&password=root&useSSL=true";
+```
+
+<Note>
+  The GCP configuration uses `useSSL=true` for encrypted connections between VMs.
+</Note>
+
+### Database Credentials
+
+<Warning>
+  **Security Note**: The current configuration uses root credentials (`user=root&password=root`). For production deployments, you should:
+  - Create a dedicated database user
+  - Use strong passwords
+  - Store credentials in environment variables or secret management systems
+  - Implement principle of least privilege
+</Warning>
+
+To change database credentials:
+
+1. **Update the connection strings** in all three Java files
+2. **Create the user in MySQL**:
+   ```sql
+   CREATE USER 'cryptoapp'@'%' IDENTIFIED BY 'strong_password_here';
+   GRANT ALL PRIVILEGES ON criptomonedas_db.* TO 'cryptoapp'@'%';
+   FLUSH PRIVILEGES;
+   ```
+3. **Update the connection string**:
+   ```java
+   private static final String DB_URL = 
+     "jdbc:mysql://10.23.176.2:3306/criptomonedas_db?user=cryptoapp&password=strong_password_here&useSSL=true";
+   ```
+
+## Service Port Configuration
+
+### Backend Services
+
+Each microservice runs on a specific port:
+
+| Service | Port | Configuration Location |
+|---------|------|------------------------|
+| **WebServer** | 8080 | WebServer.java:32 |
+| **GraficoService** | 8081 | GraficoService.java:40 |
+| **RecolectorPrecios** | 8082 | RecolectorPrecios.java:39 |
+
+#### Change WebServer Port
+
+**WebServer.java** (line 32):
+```java
+public static void main(String[] args) {
+    int serverPort = 8080;  // Change this value
+    if (args.length == 1) {
+        serverPort = Integer.parseInt(args[0]);
+    }
+    // ...
+}
+```
+
+Or pass the port as a command-line argument:
+```bash
+java -cp ".;lib/*" WebServer 9000
+```
+
+#### Change GraficoService Port
+
+**GraficoService.java** (line 40):
+```java
+private static final int PORT = 8081;  // Change this value
+```
+
+#### Change RecolectorPrecios Port
+
+**RecolectorPrecios.java** (line 39):
+```java
+public static void main(String[] args) {
+    int serverPort = 8082;  // Change this value
+    // ...
+}
+```
+
+<Tip>
+  When changing ports, ensure your firewall rules allow traffic on the new ports, and update the frontend configuration accordingly.
+</Tip>
+
+## Frontend Configuration
+
+### API Endpoint URLs
+
+The frontend connects to backend services via JavaScript configuration in **index.html** (lines 638-639):
+
+#### Local Development
+
+```javascript
+const API_BASE_URL = "http://localhost:8080";
+const CHART_API_BASE_URL = "http://localhost:8081";
+```
+
+#### Production (Direct Connection)
+
+If your backend services have public IPs:
+
+```javascript
+const API_BASE_URL = "http://YOUR_WEBSERVER_IP:8080";
+const CHART_API_BASE_URL = "http://YOUR_GRAFICO_IP:8081";
+```
+
+#### Production (Current Deployment)
+
+The current GCP deployment uses a single public IP with port routing:
+
+```javascript
+const API_BASE_URL = "http://34.36.237.99";
+const CHART_API_BASE_URL = "http://34.36.237.99";
+```
+
+<Note>
+  In this configuration, the frontend VM at 34.36.237.99 routes requests to the appropriate backend services on ports 8080 and 8081.
+</Note>
+
+#### Production (Reverse Proxy)
+
+For NGINX reverse proxy configuration (recommended):
+
+```javascript
+// Use the frontend VM's IP or domain for all requests
+const API_BASE_URL = "http://your-domain.com";
+const CHART_API_BASE_URL = "http://your-domain.com";
+```
+
+NGINX handles routing internally to backend services.
+
+### CORS Configuration
+
+All backend services include CORS headers to allow cross-origin requests:
+
+**WebServer.java** (lines 186-190):
+```java
+headers.add("Access-Control-Allow-Origin", "*");
+headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+headers.add("Access-Control-Allow-Headers", "*");
+```
+
+**GraficoService.java** (lines 790-794):
+```java
+private static void setCORSHeaders(HttpExchange exchange) {
+    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+    exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+}
+```
+
+<Warning>
+  The current configuration allows requests from any origin (`*`). For production, restrict this to your frontend domain:
+  ```java
+  headers.add("Access-Control-Allow-Origin", "https://your-domain.com");
+  ```
+</Warning>
+
+## Data Collection Configuration
+
+### Price Collection Interval
+
+**RecolectorPrecios.java** (line 47) collects prices from CoinGecko every 60 seconds:
+
+```java
+Timer temporizador = new Timer();
+temporizador.schedule(new TareaObtenerPrecios(), 0, 60_000); // 60,000ms = 60 seconds
+```
+
+To change the collection interval:
+```java
+temporizador.schedule(new TareaObtenerPrecios(), 0, 300_000); // 5 minutes
+temporizador.schedule(new TareaObtenerPrecios(), 0, 10_000);  // 10 seconds
+```
+
+<Warning>
+  **API Rate Limits**: CoinGecko's free API has rate limits. Collecting too frequently may result in blocked requests. The recommended interval is 30-60 seconds.
+</Warning>
+
+### CoinGecko API URL
+
+**RecolectorPrecios.java** (line 29) defines the CoinGecko API endpoint:
+
+```java
+private static final String URL_API = 
+  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,tron,dogecoin,cardano,hyperliquid,bitcoin-cash,chainlink&vs_currencies=usd";
+```
+
+The API fetches prices for 10 cryptocurrencies in USD.
+
+### Tracked Cryptocurrencies
+
+The application tracks these cryptocurrencies (defined in all three services):
+
+**WebServer.java** (lines 147-157):
+```java
+Map<String, String[]> criptos = Map.of(
+    "bitcoin", new String[] { "Bitcoin", "BTC" },
+    "ethereum", new String[] { "Ethereum", "ETH" },
+    "ripple", new String[] { "XRP", "XRP" },
+    "solana", new String[] { "Solana", "SOL" },
+    "tron", new String[] { "TRON", "TRX" },
+    "dogecoin", new String[] { "Dogecoin", "DOGE" },
+    "cardano", new String[] { "Cardano", "ADA" },
+    "hyperliquid", new String[] { "Hyperliquid", "HYPE" },
+    "bitcoin_cash", new String[] { "Bitcoin Cash", "BCH" },
+    "chainlink", new String[] { "Chainlink", "LINK" }
+);
+```
+
+To add or remove cryptocurrencies:
+1. Update the mapping in all three Java files
+2. Update the CoinGecko API URL in RecolectorPrecios.java
+3. Create corresponding database tables
+4. Update the frontend cryptocurrency list if needed
+
+## Frontend Refresh Interval
+
+**index.html** (line 849) refreshes price data every 60 seconds:
+
+```javascript
+document.addEventListener('DOMContentLoaded', () => {
+    fetchCryptoPrices();
+    setInterval(fetchCryptoPrices, 60000); // 60 seconds
+});
+```
+
+To change the refresh interval:
+```javascript
+setInterval(fetchCryptoPrices, 30000);  // 30 seconds
+setInterval(fetchCryptoPrices, 120000); // 2 minutes
+```
+
+## Chart Service Configuration
+
+### Chart Dimensions
+
+**GraficoService.java** configures chart sizes:
+
+**Single Chart** (line 169):
+```java
+XYChart chart = new XYChartBuilder()
+    .width(800).height(450)  // Width x Height in pixels
+    .title("Variación de precio - " + crypto.toUpperCase())
+    // ...
+```
+
+**All Cryptocurrencies Grid** (lines 254-256):
+```java
+final int graficosAncho = 400;   // Width per chart
+final int graficosAlto = 300;    // Height per chart
+final int filas = 5;             // Number of rows
+final int columnas = 2;          // Number of columns
+```
+
+**Comparison Chart** (line 511):
+```java
+XYChart chart = new XYChartBuilder()
+    .width(800).height(480)
+    // ...
+```
+
+**Regression Chart** (line 648):
+```java
+XYChart chart = new XYChartBuilder()
+    .width(800).height(500)
+    // ...
+```
+
+### Query Time Limits
+
+**GraficoService.java** (line 344) limits historical queries to 24 hours:
+
+```java
+private static final int MAX_HORAS_CONSULTA = 24;
+```
+
+This prevents excessive database queries and ensures reasonable response times.
+
+## Configuration Checklist
+
+When switching between local and production environments:
+
+<AccordionGroup>
+  <Accordion title="Local to Production">
+    - [ ] Update database connection strings to use GCP internal IP (10.23.176.2)
+    - [ ] Change database password from empty to production password
+    - [ ] Enable SSL in database connections (`useSSL=true`)
+    - [ ] Update frontend API URLs to production IPs/domain
+    - [ ] Configure firewall rules to allow necessary ports
+    - [ ] Restrict CORS to specific origins
+    - [ ] Set up systemd services for automatic startup
+  </Accordion>
+
+  <Accordion title="Production to Local">
+    - [ ] Update database connection strings to localhost
+    - [ ] Change port from 3306 to 3308 (if using XAMPP)
+    - [ ] Remove or change database password
+    - [ ] Disable SSL in database connections (`useSSL=false`)
+    - [ ] Update frontend API URLs to localhost
+    - [ ] Ensure local MySQL is running
+    - [ ] Allow CORS from all origins for testing
+  </Accordion>
+</AccordionGroup>
+
+## Environment Variables (Advanced)
+
+For better security and flexibility, consider using environment variables:
+
+```java
+// Example: Read from environment variables
+private static final String DB_HOST = System.getenv("DB_HOST");
+private static final String DB_PORT = System.getenv("DB_PORT");
+private static final String DB_NAME = System.getenv("DB_NAME");
+private static final String DB_USER = System.getenv("DB_USER");
+private static final String DB_PASS = System.getenv("DB_PASS");
+
+private static final String DB_URL = String.format(
+    "jdbc:mysql://%s:%s/%s?user=%s&password=%s&useSSL=true",
+    DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+);
+```
+
+Set environment variables in systemd service files:
+```ini
+[Service]
+Environment="DB_HOST=10.23.176.2"
+Environment="DB_PORT=3306"
+Environment="DB_NAME=criptomonedas_db"
+Environment="DB_USER=cryptoapp"
+Environment="DB_PASS=secure_password"
+```
+
+## Next Steps
+
+- Set up [local development environment](/deployment/local-setup)
+- Deploy to [Google Cloud Platform](/deployment/google-cloud)
+- Review [API endpoints](/api-reference/overview)
+- Learn about [architecture](/introduction/architecture)

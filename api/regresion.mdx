@@ -1,0 +1,285 @@
+---
+title: GET /regresion
+description: Generate linear regression analysis chart for price prediction
+---
+
+Generate a linear regression chart showing historical price data with a fitted trend line and statistical metrics.
+
+## Endpoint
+
+```
+GET http://your-server:8081/regresion
+```
+
+## Parameters
+
+<ParamField query="crypto" type="string" required>
+  The cryptocurrency table name (lowercase). 
+  
+  Valid values: `bitcoin`, `ethereum`, `ripple`, `solana`, `tron`, `dogecoin`, `cardano`, `hyperliquid`, `bitcoin_cash`, `chainlink`
+</ParamField>
+
+<ParamField query="inicio" type="integer" default="10">
+  Start hour of the day (0-23) for data collection.
+  
+  Example: `10` means 10:00 AM
+</ParamField>
+
+<ParamField query="fin" type="integer" default="12">
+  End hour of the day (1-24) for data collection.
+  
+  Must be greater than `inicio`. Example: `12` means 12:00 PM (noon)
+</ParamField>
+
+## Response
+
+Returns a PNG image (`Content-Type: image/png`) showing:
+- **Chart title**: "Regresión Lineal - {Name} ({Symbol})"
+- **Subtitle**: Linear equation and R² coefficient
+- **X-axis**: Time intervals (sequential data points)
+- **Y-axis**: Price in USD
+- **Chart dimensions**: 800x500 pixels
+
+## Chart Elements
+
+### Scatter Plot
+- **Color**: Red (#E74C3C)
+- **Marker**: Circles (6px)
+- **Data**: Actual historical price points
+
+### Regression Line
+- **Color**: Blue (#3498DB)
+- **Line width**: 3 pixels
+- **Data**: Fitted linear trend line
+
+### Statistical Display
+
+The chart title includes:
+1. **Linear equation**: `y = mx + b`
+   - `m` = slope (rate of price change)
+   - `b` = y-intercept
+
+2. **R² coefficient**: Coefficient of determination (0-1)
+   - Values closer to 1 indicate better fit
+   - Measures how well the line explains price variation
+
+## Linear Regression Calculation
+
+### Formula
+
+The least squares method is used:
+
+```
+slope (m) = (n·Σ(xy) - Σx·Σy) / (n·Σ(x²) - (Σx)²)
+intercept (b) = (Σy - m·Σx) / n
+```
+
+### R² Calculation
+
+```
+R² = 1 - (SS_res / SS_tot)
+
+where:
+SS_tot = Σ(y_i - ȳ)²  (total sum of squares)
+SS_res = Σ(y_i - ŷ_i)²  (residual sum of squares)
+ȳ = mean of y values
+ŷ_i = predicted value from regression line
+```
+
+### Interpretation
+
+- **Positive slope**: Price is increasing over time
+- **Negative slope**: Price is decreasing over time
+- **R² ≈ 1**: Strong linear relationship (good prediction)
+- **R² ≈ 0**: Weak linear relationship (poor prediction)
+
+## Status Codes
+
+- `200` - Success (returns PNG image)
+- `400` - Bad Request (invalid parameters)
+- `405` - Method Not Allowed (non-GET request)
+- `500` - Internal Server Error (database error or insufficient data)
+
+## Error Messages
+
+### Invalid Parameters
+```
+Parámetros inválidos. Usa ?crypto=bitcoin&inicio=10&fin=12
+```
+
+This occurs when:
+- `crypto` is empty or not in the supported list
+- `inicio` < 0 or `inicio` > 23
+- `fin` ≤ `inicio` or `fin` > 24
+
+### Insufficient Data
+```
+No hay datos suficientes para el rango especificado
+```
+
+This occurs when no data exists in the database for the specified hour range.
+
+## Example Requests
+
+### Bitcoin regression (10 AM to 12 PM)
+
+```bash
+curl "http://your-server:8081/regresion?crypto=bitcoin&inicio=10&fin=12" \
+  -o bitcoin_regression.png
+```
+
+### Ethereum regression (custom hours)
+
+```bash
+curl "http://your-server:8081/regresion?crypto=ethereum&inicio=14&fin=18" \
+  -o ethereum_regression.png
+```
+
+### Morning trend analysis (6 AM to 12 PM)
+
+```bash
+curl "http://your-server:8081/regresion?crypto=solana&inicio=6&fin=12" \
+  -o solana_morning_trend.png
+```
+
+### Full day analysis
+
+```bash
+curl "http://your-server:8081/regresion?crypto=cardano&inicio=0&fin=24" \
+  -o cardano_full_day.png
+```
+
+### JavaScript fetch
+
+```javascript
+const crypto = 'bitcoin';
+const inicio = 8;  // 8 AM
+const fin = 16;     // 4 PM
+
+fetch(`http://your-server:8081/regresion?crypto=${crypto}&inicio=${inicio}&fin=${fin}`)
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.blob();
+  })
+  .then(blob => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    img.alt = `${crypto} regression analysis`;
+    document.body.appendChild(img);
+  })
+  .catch(error => console.error('Error:', error));
+```
+
+### Python with analysis
+
+```python
+import requests
+import re
+from PIL import Image
+from io import BytesIO
+
+def get_regression_chart(crypto, inicio, fin):
+    params = {
+        'crypto': crypto,
+        'inicio': inicio,
+        'fin': fin
+    }
+    
+    response = requests.get('http://your-server:8081/regresion', params=params)
+    
+    if response.status_code == 200:
+        # Save the image
+        with open(f'{crypto}_regression.png', 'wb') as f:
+            f.write(response.content)
+        
+        # Display the image
+        image = Image.open(BytesIO(response.content))
+        image.show()
+        
+        print(f'Regression chart saved for {crypto}')
+        return True
+    else:
+        print(f'Error {response.status_code}: {response.text}')
+        return False
+
+# Analyze Bitcoin from 9 AM to 5 PM
+get_regression_chart('bitcoin', 9, 17)
+```
+
+## Implementation Details
+
+### Database Query
+
+```sql
+SELECT fecha_registro, precio FROM {crypto_table}
+WHERE DATE(fecha_registro) = CURDATE()
+AND HOUR(fecha_registro) >= ?
+AND HOUR(fecha_registro) < ?
+ORDER BY fecha_registro ASC
+```
+
+**Important**: The query only looks at the current day's data (`CURDATE()`). Historical days are not included.
+
+### Time Zone Adjustment
+
+All timestamps are adjusted by -6 hours from the database timezone.
+
+### Data Points
+
+The number of data points depends on:
+- Hour range specified
+- Data collection frequency (every 60 seconds)
+- Availability in the database
+
+For a 2-hour range, expect approximately 120 data points (one per minute).
+
+## Use Cases
+
+### Trend Analysis
+Identify if prices are trending up or down during specific hours:
+```
+?crypto=bitcoin&inicio=0&fin=24
+```
+
+### Trading Hours Analysis
+Analyze price movement during active trading hours:
+```
+?crypto=ethereum&inicio=9&fin=17
+```
+
+### Volatility Assessment
+Low R² values indicate high volatility (less predictable):
+```
+?crypto=dogecoin&inicio=12&fin=18
+```
+
+### Price Prediction
+Use the regression line equation to predict near-term prices (use with caution).
+
+## Limitations
+
+1. **Current Day Only**: Only analyzes data from the current day
+2. **Linear Assumption**: Assumes linear relationship (may not fit all market conditions)
+3. **Short-term**: Most useful for intraday analysis
+4. **No Extrapolation**: The chart doesn't extend beyond the data range
+5. **Hour-based**: Uses hour boundaries, not exact timestamps
+
+## CORS Support
+
+The endpoint includes full CORS support:
+
+**Response Headers:**
+```
+Content-Type: image/png
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+```
+
+**OPTIONS Preflight:**
+```bash
+curl -X OPTIONS "http://your-server:8081/regresion"
+# Returns 204 No Content with CORS headers
+```

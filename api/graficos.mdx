@@ -1,0 +1,216 @@
+---
+title: Chart Endpoints
+description: Generate price charts for single or multiple cryptocurrencies
+---
+
+The chart endpoints generate PNG images showing cryptocurrency price variations over time.
+
+## GET /grafico
+
+Generate a price chart for a single cryptocurrency over a specified time period.
+
+### Endpoint
+
+```
+GET http://your-server:8081/grafico
+```
+
+### Parameters
+
+<ParamField query="crypto" type="string" required>
+  The cryptocurrency table name (lowercase). Valid values:
+  - `bitcoin`, `ethereum`, `ripple`, `solana`, `tron`
+  - `dogecoin`, `cardano`, `hyperliquid`, `bitcoin_cash`, `chainlink`
+</ParamField>
+
+<ParamField query="horas" type="integer" default="3">
+  Number of hours of historical data to display. Valid range: 1-24.
+</ParamField>
+
+### Response
+
+Returns a PNG image (`Content-Type: image/png`) showing:
+- X-axis: Time in HH:mm format
+- Y-axis: Price in USD
+- Area chart with blue gradient fill
+- Chart dimensions: 800x450 pixels
+
+### Chart Features
+
+- **Style**: Area chart with gradient fill
+- **Color**: Blue (#3498DB) with 80% opacity fill
+- **Background**: White chart background, light gray plot area
+- **Grid**: Light gray grid lines
+- **Time Format**: HH:mm (24-hour format)
+- **Price Format**: #,###.00 (with thousand separators)
+
+### Status Codes
+
+- `200` - Success (returns PNG image)
+- `204` - No Content (no data available for the specified period)
+- `400` - Bad Request (invalid parameters)
+- `405` - Method Not Allowed (non-GET request)
+- `500` - Internal Server Error (database error)
+
+### Example Requests
+
+**Get Bitcoin price chart for last 3 hours:**
+```bash
+curl "http://your-server:8081/grafico?crypto=bitcoin&horas=3" \
+  -o bitcoin_3h.png
+```
+
+**Get Ethereum price chart for last 24 hours:**
+```bash
+curl "http://your-server:8081/grafico?crypto=ethereum&horas=24" \
+  -o ethereum_24h.png
+```
+
+**Display in HTML:**
+```html
+<img src="http://your-server:8081/grafico?crypto=solana&horas=6" 
+     alt="Solana Price Chart" />
+```
+
+**JavaScript fetch and display:**
+```javascript
+const crypto = 'bitcoin';
+const horas = 6;
+
+fetch(`http://your-server:8081/grafico?crypto=${crypto}&horas=${horas}`)
+  .then(response => response.blob())
+  .then(blob => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    document.body.appendChild(img);
+  });
+```
+
+---
+
+## GET /graficos-todas
+
+Generate a composite chart showing all 10 cryptocurrencies in a grid layout.
+
+### Endpoint
+
+```
+GET http://your-server:8081/graficos-todas
+```
+
+### Parameters
+
+<ParamField query="horas" type="integer" default="24">
+  Number of hours of historical data to display. Valid range: 1-24.
+</ParamField>
+
+### Response
+
+Returns a PNG image (`Content-Type: image/png`) showing:
+- **Layout**: 5 rows × 2 columns grid
+- **Individual charts**: 400x300 pixels each
+- **Total image size**: Approximately 860x1600 pixels
+- **Title**: "Variación de Precios - Últimas {horas} horas"
+- **Each chart**: Line graph with cryptocurrency-specific color
+
+### Chart Colors
+
+Each cryptocurrency has a distinct color:
+- **Bitcoin**: Orange (#F79316)
+- **Ethereum**: Olive Green (#627E00)
+- **XRP**: Sky Blue (#00A2E8)
+- **Solana**: Silver Gray (#BFBFBF)
+- **TRON**: Green (#00FF00)
+- **Dogecoin**: Black (#000000)
+- **Cardano**: Yellow (#FFCC00)
+- **Hyperliquid**: Blue (#0000FF)
+- **Bitcoin Cash**: Purple (#673AB7)
+- **Chainlink**: Red (#FF0000)
+
+### Grid Layout
+
+```
+┌──────────────┬──────────────┐
+│   Bitcoin    │  Ethereum    │
+├──────────────┼──────────────┤
+│     XRP      │   Solana     │
+├──────────────┼──────────────┤
+│    TRON      │  Dogecoin    │
+├──────────────┼──────────────┤
+│   Cardano    │ Hyperliquid  │
+├──────────────┼──────────────┤
+│ Bitcoin Cash │  Chainlink   │
+└──────────────┴──────────────┘
+```
+
+### Status Codes
+
+- `200` - Success (returns PNG image)
+- `400` - Bad Request (invalid hours parameter)
+- `405` - Method Not Allowed (non-GET request)
+- `500` - Internal Server Error (database error)
+
+### Example Requests
+
+**Get all cryptocurrencies for last 24 hours:**
+```bash
+curl "http://your-server:8081/graficos-todas?horas=24" \
+  -o all_cryptos_24h.png
+```
+
+**Get all cryptocurrencies for last 6 hours:**
+```bash
+curl "http://your-server:8081/graficos-todas?horas=6" \
+  -o all_cryptos_6h.png
+```
+
+**Display in HTML:**
+```html
+<img src="http://your-server:8081/graficos-todas?horas=12" 
+     alt="All Cryptocurrencies" 
+     style="width: 100%; max-width: 860px;" />
+```
+
+**Python download:**
+```python
+import requests
+
+response = requests.get('http://your-server:8081/graficos-todas', 
+                       params={'horas': 24})
+
+if response.status_code == 200:
+    with open('all_cryptos.png', 'wb') as f:
+        f.write(response.content)
+    print('Chart saved successfully')
+```
+
+## Implementation Details
+
+### Database Query
+
+Both endpoints query the MySQL database:
+```sql
+SELECT fecha_registro, precio FROM {crypto_table}
+WHERE fecha_registro >= NOW() - INTERVAL ? HOUR
+ORDER BY fecha_registro
+```
+
+### Chart Library
+
+Charts are generated using the XChart library (org.knowm.xchart).
+
+### Time Zone Adjustment
+
+All timestamps are adjusted by -6 hours from the database timezone.
+
+## CORS Support
+
+Both endpoints include full CORS support:
+
+**Response Headers:**
+```
+Content-Type: image/png
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+```

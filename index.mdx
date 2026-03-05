@@ -1,97 +1,195 @@
----
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
----
+<div className="relative overflow-hidden bg-gradient-to-br from-[#0f1117] via-[#1a1d27] to-[#0f1117] dark:from-[#0f1117] dark:via-[#1a1d27] dark:to-[#0f1117]">
+  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40"></div>
+  
+  <div className="relative max-w-7xl mx-auto px-6 sm:px-8 py-20 lg:py-24">
+    <div className="text-center">
+      <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+        CryptoTracker Web
+      </h1>
+      <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10">
+        Real-time cryptocurrency tracking with distributed microservices architecture. Monitor prices, analyze trends, and visualize market movements for 10 major cryptocurrencies.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center gap-2 bg-[#a6f77b] hover:bg-[#95e66a] text-[#1a1a1a] font-semibold px-8 py-3.5 rounded-lg transition-all transform hover:scale-105 shadow-lg"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Get Started
+        </a>
+        <a 
+          href="/api/overview" 
+          className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/30 font-semibold px-8 py-3.5 rounded-lg transition-all backdrop-blur-sm"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          API Reference
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
-## Setting up
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">Quick Start</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Get up and running with CryptoTracker Web in minutes</p>
+  
+  <Steps>
+    <Step title="Clone the repository">
+      Clone the CryptoTracker Web repository to your local machine.
+      
+      ```bash
+      git clone https://github.com/Damrod14/CryptoTracker_Web.git
+      cd CryptoTracker_Web
+      ```
+    </Step>
+    
+    <Step title="Configure the database">
+      Set up MySQL and create the required database schema. Update the connection string in each service.
+      
+      ```java
+      private static final String DB_URL = 
+        "jdbc:mysql://localhost:3306/criptomonedas_db?user=root&password=your_password";
+      ```
+      
+      <Note>Each cryptocurrency has its own table: `bitcoin`, `ethereum`, `ripple`, `solana`, `tron`, `dogecoin`, `cardano`, `hyperliquid`, `bitcoin_cash`, and `chainlink`.</Note>
+    </Step>
+    
+    <Step title="Start the microservices">
+      Compile and run each service on its designated port.
+      
+      ```bash
+      # WebServer (port 8080)
+      javac -cp ".;lib/*" java/WebServer.java
+      java -cp ".;lib/*" WebServer
+      
+      # GraficoService (port 8081)
+      javac -cp ".;lib/*" java/GraficoService.java
+      java -cp ".;lib/*" java.GraficoService
+      
+      # RecolectorPrecios (port 8082)
+      javac -cp ".;lib/*" java/RecolectorPrecios.java
+      java -cp ".;lib/*" RecolectorPrecios
+      ```
+    </Step>
+    
+    <Step title="Access the frontend">
+      Open the frontend in your browser to start tracking cryptocurrencies.
+      
+      ```
+      http://localhost/index.html
+      ```
+      
+      The interface provides real-time price updates, historical charts, comparison tools, and linear regression analysis.
+    </Step>
+  </Steps>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">Explore the Documentation</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Learn about the architecture, services, and API endpoints</p>
+  
+  <CardGroup cols={2}>
+    <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+      Understand the microservices architecture and how components interact
+    </Card>
+    <Card title="WebServer Service" icon="server" href="/services/webserver">
+      REST API for retrieving real-time cryptocurrency prices
+    </Card>
+    <Card title="Chart Generation" icon="chart-line" href="/services/grafico-service">
+      Generate PNG charts with price variations and comparisons
+    </Card>
+    <Card title="Price Collection" icon="database" href="/services/recolector-precios">
+      Automated collection and storage of cryptocurrency prices
+    </Card>
+  </CardGroup>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">Key Features</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Everything you need for cryptocurrency tracking and analysis</p>
+  
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-[#159944]/10 dark:bg-[#159944]/20 p-2 rounded-lg">
+          <svg className="w-6 h-6 text-[#159944]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Real-Time Tracking</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Monitor live prices for 10 major cryptocurrencies with updates every 60 seconds from CoinGecko API
+      </p>
+    </div>
+    
+    <div className="bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-[#159944]/10 dark:bg-[#159944]/20 p-2 rounded-lg">
+          <svg className="w-6 h-6 text-[#159944]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Historical Charts</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Visualize price variations over customizable time ranges up to 24 hours
+      </p>
+    </div>
+    
+    <div className="bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-[#159944]/10 dark:bg-[#159944]/20 p-2 rounded-lg">
+          <svg className="w-6 h-6 text-[#159944]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Multi-Crypto Comparison</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Compare multiple cryptocurrencies with normalized price overlays on a single chart
+      </p>
+    </div>
+    
+    <div className="bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-[#159944]/10 dark:bg-[#159944]/20 p-2 rounded-lg">
+          <svg className="w-6 h-6 text-[#159944]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Regression Analysis</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Perform linear regression analysis to identify price trends and predict future movements
+      </p>
+    </div>
+  </div>
+</div>
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="bg-gradient-to-r from-[#545454] to-[#159944] rounded-2xl p-8 sm:p-12 text-center">
+    <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Ready to Deploy?</h2>
+    <p className="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
+      Learn how to deploy CryptoTracker Web to Google Cloud Platform or run it locally for development
+    </p>
+    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+      <a 
+        href="/deployment/local-setup" 
+        className="inline-flex items-center justify-center gap-2 bg-white text-[#545454] hover:bg-gray-100 font-semibold px-6 py-3 rounded-lg transition-colors"
+      >
+        Local Setup Guide
+      </a>
+      <a 
+        href="/deployment/google-cloud" 
+        className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/30 font-semibold px-6 py-3 rounded-lg transition-colors backdrop-blur-sm"
+      >
+        Deploy to GCP
+      </a>
+    </div>
+  </div>
+</div>
